@@ -8,6 +8,8 @@ export interface InvoiceData {
   date_time: Date;
   ready_by: Date;
   status: string;
+  old_credits: number;
+  new_credits: number;
 }
 
 export function useInsertInvoice() {
@@ -25,8 +27,10 @@ export function useInsertInvoice() {
           card_id: invoiceData.card_id,
           invoice_no: invoiceData.invoice_no,
           date_time: new Date(),
-          ready_by: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000),
-          status: invoiceData.status
+          ready_by: new Date(currentDate.getTime() + 1 * 24 * 60 * 60 * 1000),
+          status: invoiceData.status,
+          old_credits: invoiceData.old_credits,
+          new_credits: invoiceData.new_credits
         },
       ]);
 
@@ -127,7 +131,7 @@ export function useUpdateInvoiceStatus() {
 
       const { error } = await supabase
         .from('invoice')
-        .update({ status: 'returned' })
+        .update({ status: 'Returned' })
         .eq('id', invoiceId);
 
       if (error) {
@@ -172,6 +176,8 @@ export function useInvoiceDetails(invoiceId: number) {
             date_time: new Date(data.date_time),
             ready_by: new Date(data.ready_by),
             status: data.status,
+            old_credits: data.old_credits,
+            new_credits: data.new_credits
           });
         } else {
           throw new Error('Invoice not found');

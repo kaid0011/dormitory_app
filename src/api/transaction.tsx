@@ -6,7 +6,6 @@ export interface TransactionData {
   item_id: number;
   invoice_id: number;
   serial_no: number;
-  tag_no: number;
 }
 
 export function useInsertTransaction() {
