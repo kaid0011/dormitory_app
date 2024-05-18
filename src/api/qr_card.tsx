@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase'; // Import Supabase client
+import { supabase } from '../../lib/supabase'; // Import Supabase client
 
 interface QrCard {
   id: number;

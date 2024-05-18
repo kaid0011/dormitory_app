@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase'; // Import Supabase client
+import { supabase } from '../../lib/supabase'; // Import Supabase client
 
 export interface TransactionData {
   item_id: number;
