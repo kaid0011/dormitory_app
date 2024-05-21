@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator, Dimensions, TouchableOpacity, Switch, Image } from 'react-native';
+import { Text, View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import { useQrCardList } from '@/api/qr_card'; // Import the useQrCardList hook
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { useQrCardList } from '@/api/qr_card';
+import Header from '@/components/Header';
 
-export default function Balance() {
+const Balance = () => {
   const route = useRoute();
   const { qr } = route.params as { qr: string };
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
+  const [accountExists, setAccountExists] = useState<boolean | null>(null);
 
-  const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList(); // Use the useQrCardList hook
+  const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
 
   useEffect(() => {
     if (qrCardList) {
       const qrCard = qrCardList.find((item) => item.card_no === qr);
       if (qrCard) {
         setCredits(qrCard.credits);
+        setAccountExists(true);
       } else {
         setCredits(null);
+        setAccountExists(false);
       }
     }
   }, [qrCardList, qr]);
@@ -44,41 +47,27 @@ export default function Balance() {
 
   return (
     <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <View style={[styles.header, isDarkMode ? styles.darkHeader : styles.lightHeader]}>
-        <View style={styles.headerContent}>
-          <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
-          <Text style={[styles.headerText, isDarkMode ? styles.darkHeaderText : styles.lightHeaderText]}>
-            Dormitory App
-          </Text>
-        </View>
-        <View style={styles.themeToggleContainer}>
-          <FontAwesome6
-            name={isDarkMode ? "sun" : "moon"}
-            size={24}
-            color={isDarkMode ? "#fff" : "#000"}
-            style={styles.themeIcon}
-          />
-          <Switch
-            value={isDarkMode}
-            onValueChange={toggleTheme}
-            style={styles.toggle}
-          />
-        </View>
-      </View>
+      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <View style={styles.content}>
-        <Text style={[styles.qrText, isDarkMode ? styles.darkText : styles.lightText]}>Account: <Text style={styles.qrCode}>{qr}</Text></Text>
-        {credits !== null ? (
-          <View style={[styles.creditsContainer, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
-            <Text style={[styles.creditsText]}>Remaining Credits:</Text>
-            <Text style={[styles.creditValue, isDarkMode ? styles.darkCreditValue : styles.lightCreditValue]}>{credits}</Text>
-          </View>
+        {accountExists ? (
+          <>
+            <Text style={[styles.qrText, isDarkMode ? styles.darkText : styles.lightText]}>
+              Account: <Text style={styles.qrCode}>{qr}</Text>
+            </Text>
+            <View style={[styles.creditsContainer, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
+              <Text style={styles.creditsText}>Remaining Credits:</Text>
+              <Text style={[styles.creditValue, isDarkMode ? styles.darkCreditValue : styles.lightCreditValue]}>{credits}</Text>
+            </View>
+          </>
         ) : (
-          <Text style={[styles.noCreditsText, isDarkMode ? styles.darkNoCreditsText : styles.lightNoCreditsText]}>No credits found for this QR code</Text>
+          <Text style={[styles.noAccountText, isDarkMode ? styles.darkNoAccountText : styles.lightNoAccountText]}>
+            No existing account under {qr}
+          </Text>
         )}
       </View>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -90,53 +79,11 @@ const styles = StyleSheet.create({
   darkMode: {
     backgroundColor: '#001b1d',
   },
-  header: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 30,
-    paddingTop: 60,
-    paddingBottom: 20,
-    flexDirection: "row",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  lightHeader: {
-    backgroundColor: "#00545E",
-  },
-  darkHeader: {
-    backgroundColor: "#002a2e",
-  },
-  lightHeaderText: {
-    color: "#e2e2e2",
-  },
-  darkHeaderText: {
-    color: "#e2e2e2",
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   lightText: {
     color: '#000',
   },
   darkText: {
     color: '#e5e5e5',
-  },
-  themeToggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  themeIcon: {
-    marginRight: 10,
-  },
-  toggle: {},
-  logo: {
-    width: 50,
-    height: 50,
-    marginRight: 10,
   },
   content: {
     flex: 1,
@@ -195,6 +142,16 @@ const styles = StyleSheet.create({
   darkNoCreditsText: {
     color: '#e2e2e2',
   },
+  noAccountText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  lightNoAccountText: {
+    color: '#dc3545',
+  },
+  darkNoAccountText: {
+    color: '#e2e2e2',
+  },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -214,17 +171,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#dc3545',
   },
-  backButton: {
-    backgroundColor: '#007bff',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 5,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
 });
+
+export default Balance;

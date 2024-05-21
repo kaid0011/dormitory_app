@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, Switch, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, Switch } from 'react-native';
 import BouncyCheckbox from 'react-native-bouncy-checkbox';
-import { useAllInvoices, InvoiceData } from "@/api/invoice";
-import { useUpdateInvoiceStatus } from "@/api/invoice";
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { useAllInvoices, InvoiceData, useUpdateInvoiceStatus } from "@/api/invoice";
+import Header from "@/components/Header";
 
 export default function ReturningLaundry() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectAll, setSelectAll] = useState<boolean>(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const { invoices, isLoading, isError, fetchAllInvoices } = useAllInvoices();
-  const { updateInvoiceStatus, isUpdating, isError: updateError } = useUpdateInvoiceStatus();
+  const { updateInvoiceStatus, isUpdating } = useUpdateInvoiceStatus();
+
+  useEffect(() => {
+    fetchAllInvoices();
+  }, []);
 
   const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'Ongoing');
 
@@ -21,11 +24,11 @@ export default function ReturningLaundry() {
   };
 
   const toggleItemSelection = (id: number) => {
-    if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(itemId => itemId !== id));
-    } else {
-      setSelectedItems([...selectedItems, id]);
-    }
+    setSelectedItems(prevSelectedItems =>
+      prevSelectedItems.includes(id)
+        ? prevSelectedItems.filter(itemId => itemId !== id)
+        : [...prevSelectedItems, id]
+    );
   };
 
   const handleReturn = async () => {
@@ -47,10 +50,18 @@ export default function ReturningLaundry() {
         iconStyle={{ borderColor: 'green', marginLeft: 10 }}
       />
       <View style={styles.itemDetails}>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}><Text style={styles.bold}>Invoice No.:</Text> {item.invoice_no}</Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}><Text style={styles.bold}>Card No.:</Text> {item.card_id}</Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}><Text style={styles.bold}>Date:</Text> {item.date_time.toLocaleDateString()}</Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}><Text style={styles.bold}>Time:</Text> {item.date_time.toLocaleTimeString()}</Text>
+        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={styles.bold}>Invoice No.:</Text> {item.invoice_no}
+        </Text>
+        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={styles.bold}>Card No.:</Text> {item.card_id}
+        </Text>
+        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={styles.bold}>Date:</Text> {new Date(item.date_time).toLocaleDateString()}
+        </Text>
+        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={styles.bold}>Time:</Text> {new Date(item.date_time).toLocaleTimeString()}
+        </Text>
       </View>
     </View>
   );
@@ -65,27 +76,7 @@ export default function ReturningLaundry() {
 
   return (
     <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <View style={[styles.header, isDarkMode ? styles.darkHeader : styles.lightHeader]}>
-        <View style={styles.headerContent}>
-          <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
-          <Text style={[styles.greeting, isDarkMode ? styles.darkHeaderText : styles.lightHeaderText]}>
-            Dormitory App
-          </Text>
-        </View>
-        <View style={styles.themeToggleContainer}>
-          <FontAwesome6
-            name={isDarkMode ? "sun" : "moon"}
-            size={24}
-            color={isDarkMode ? "#fff" : "#000"}
-            style={styles.themeIcon}
-          />
-          <Switch
-            value={isDarkMode}
-            onValueChange={toggleTheme}
-            style={styles.toggle}
-          />
-        </View>
-      </View>
+      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <FlatList
         data={ongoingInvoices}
         renderItem={renderItem}
@@ -102,7 +93,11 @@ export default function ReturningLaundry() {
           text="Select All"
           textStyle={isDarkMode ? styles.darkText : styles.lightText}
         />
-        <TouchableOpacity style={isDarkMode ? styles.darkButton : styles.lightButton} onPress={handleReturn} disabled={isUpdating}>
+        <TouchableOpacity
+          style={isDarkMode ? styles.darkButton : styles.lightButton}
+          onPress={handleReturn}
+          disabled={isUpdating}
+        >
           <Text style={isDarkMode ? styles.darkButtonText : styles.lightButtonText}>Return</Text>
         </TouchableOpacity>
       </View>
@@ -164,48 +159,6 @@ const styles = StyleSheet.create({
   },
   darkFooter: {
     backgroundColor: '#333',
-  },
-  header: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 30,
-    paddingTop: 60,
-    paddingBottom: 20,
-    flexDirection: "row",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  lightHeader: {
-    backgroundColor: "#00545E",
-  },
-  darkHeader: {
-    backgroundColor: "#002a2e",
-  },
-  lightHeaderText: {
-    color: "#e2e2e2",
-  },
-  darkHeaderText: {
-    color: "#e2e2e2",
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  themeToggleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  themeIcon: {
-    marginRight: 10,
-  },
-  toggle: {},
-  logo: {
-    width: 50,
-    height: 50,
   },
   lightButton: {
     height: 50,

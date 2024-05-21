@@ -4,8 +4,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAllInvoices, InvoiceData } from "@/api/invoice";
 import { router } from 'expo-router';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import Header from '@/components/Header';
 
-export default function History() {
+const History = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -17,6 +18,10 @@ export default function History() {
   useEffect(() => {
     fetchAllInvoices();
   }, []);
+
+  useEffect(() => {
+    setFilteredInvoices(invoices);
+  }, [invoices]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
   const toggleStartDatePicker = () => setShowStartDatePicker(!showStartDatePicker);
@@ -44,9 +49,10 @@ export default function History() {
     }
   };
 
-  useEffect(() => {
-    setFilteredInvoices(invoices);
-  }, [invoices]);
+  const handleViewButton = (item: InvoiceData) => {
+    const invoiceId = item.id;
+    router.navigate(`/invoice_history?invoiceId=${invoiceId}`);
+  };
 
   const renderItem = useCallback(({ item }: { item: InvoiceData }) => (
     <View style={[styles.itemContainer, isDarkMode ? styles.darkList : styles.lightList]}>
@@ -63,11 +69,6 @@ export default function History() {
     </View>
   ), [isDarkMode]);
 
-  const handleViewButton = (item: InvoiceData) => {
-    const invoiceId = item.id;
-    router.navigate(`/invoice_history?invoiceId=${invoiceId}`);
-  };
-
   if (isLoading) {
     return <ActivityIndicator size="large" color="#0000ff" />;
   }
@@ -78,27 +79,7 @@ export default function History() {
 
   return (
     <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <View style={[styles.header, isDarkMode ? styles.darkHeader : styles.lightHeader]}>
-        <View style={styles.headerContent}>
-          <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
-          <Text style={[styles.greeting, isDarkMode ? styles.darkHeaderText : styles.lightHeaderText]}>
-            Dormitory App
-          </Text>
-        </View>
-        <View style={styles.themeToggleContainer}>
-          <FontAwesome6
-            name={isDarkMode ? "sun" : "moon"}
-            size={24}
-            color={isDarkMode ? "#fff" : "#000"}
-            style={styles.themeIcon}
-          />
-          <Switch
-            value={isDarkMode}
-            onValueChange={toggleTheme}
-            style={styles.toggle}
-          />
-        </View>
-      </View>
+      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <View style={styles.datePickerContainer}>
         <TouchableOpacity style={[styles.datePickerButton, isDarkMode ? styles.darkList : styles.lightList]} onPress={toggleStartDatePicker}>
           <Text style={isDarkMode ? styles.darkText : styles.lightText}>{startDate ? startDate.toDateString() : 'Select Start Date'}</Text>
@@ -190,19 +171,6 @@ const styles = StyleSheet.create({
   bold: {
     fontWeight: 'bold',
   },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  lightFooter: {
-    backgroundColor: '#f0f0f0',
-  },
-  darkFooter: {
-    backgroundColor: '#333',
-  },
   header: {
     width: "100%",
     alignItems: "center",
@@ -273,28 +241,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  lightViewButton: {
-    margin: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0)",
-  },
-  lightViewText: {
-    color: "#d6b53c",
-    fontSize: 30,
-    fontWeight: "bold",
-  },
-  darkViewButton: {
-    margin: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0)",
-  },
-  darkViewText: {
-    color: "#d6b53c",
-    fontSize: 30,
-    fontWeight: "bold",
-  },
   datePickerContainer: {
     flexDirection: 'row',
     margin: 10,
@@ -319,11 +265,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 5,
   },
-  searchButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   totalTransactionsContainer: {
     marginVertical: 10,
     justifyContent: 'center',
@@ -346,3 +287,5 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
 });
+
+export default History;

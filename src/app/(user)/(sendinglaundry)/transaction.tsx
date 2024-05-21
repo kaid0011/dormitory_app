@@ -6,17 +6,16 @@ import {
   FlatList,
   Dimensions,
   TouchableOpacity,
-  Switch,
-  Image,
   ActivityIndicator,
 } from "react-native";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useItemList } from "@/api/item_list";
 import { useQrCardList, updateQrCardCredits } from "@/api/qr_card";
 import { useInsertInvoice, useLastInsertedInvoiceId } from "@/api/invoice";
 import { useInsertTransaction } from "@/api/transaction";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import Header from "@/components/Header";
 
 // Define the TransactionData type
 type TransactionData = {
@@ -27,47 +26,30 @@ type TransactionData = {
 
 export default function Transaction() {
   const route = useRoute();
-  const navigation = useNavigation();
   const { qr } = route.params as { qr: string };
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [itemCount, setItemCount] = useState<{ [key: string]: number }>({});
   const [credits, setCredits] = useState<number | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [accountExists, setAccountExists] = useState<boolean>(true);
 
-  const {
-    data: itemListData,
-    isLoading: itemListLoading,
-    isError: itemListError,
-  } = useItemList();
-  const {
-    data: qrCardList,
-    isLoading: qrCardLoading,
-    isError: qrCardError,
-  } = useQrCardList();
+  const { data: itemListData, isLoading: itemListLoading, isError: itemListError } = useItemList();
+  const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
 
-  const {
-    insertTransaction,
-    isInserting: isInsertingTransaction,
-    isError: insertTransactionError,
-  } = useInsertTransaction();
-  const {
-    insertInvoice,
-    isInserting: isInsertingInvoice,
-    isError: insertInvoiceError,
-  } = useInsertInvoice();
-  const {
-    lastInsertedInvoiceId,
-    isLoading: invoiceIdLoading,
-    isError: invoiceIdError,
-  } = useLastInsertedInvoiceId();
+  const { insertTransaction, isInserting: isInsertingTransaction, isError: insertTransactionError } = useInsertTransaction();
+  const { insertInvoice, isInserting: isInsertingInvoice, isError: insertInvoiceError } = useInsertInvoice();
+  const { lastInsertedInvoiceId, isLoading: invoiceIdLoading, isError: invoiceIdError } = useLastInsertedInvoiceId();
 
   useEffect(() => {
     if (qrCardList) {
       const qrCard = qrCardList.find((item) => item.card_no === qr);
       if (qrCard) {
         setCredits(qrCard.credits);
+        setAccountExists(true);
       } else {
         setCredits(null);
+        setAccountExists(false);
       }
     }
   }, [qrCardList, qr]);
@@ -100,25 +82,20 @@ export default function Transaction() {
       if (qrCardList) {
         const qrCard = qrCardList.find((item) => item.card_no === qr);
         if (qrCard) {
-          const lastId =
-            lastInsertedInvoiceId === null ? 0 : lastInsertedInvoiceId;
+          const lastId = lastInsertedInvoiceId === null ? 0 : lastInsertedInvoiceId;
           const newInvoiceId = lastId + 1;
           const currentDate = new Date();
           const year = currentDate.getFullYear().toString().slice(-2);
           const month = ("0" + (currentDate.getMonth() + 1)).slice(-2);
           const day = ("0" + currentDate.getDate()).slice(-2);
-          const invoiceNumber = `CC${year}${month}${day}${newInvoiceId
-            .toString()
-            .padStart(4, "0")}`;
+          const invoiceNumber = `CC${year}${month}${day}${newInvoiceId.toString().padStart(4, "0")}`;
           const status = "Ongoing";
 
           const transactionData: TransactionData[] = [];
           let serialNo = 0;
 
           Object.entries(itemCount).forEach(([itemId, quantity]) => {
-            const item = itemListData.find(
-              (item) => item.id.toString() === itemId
-            );
+            const item = itemListData.find((item) => item.id.toString() === itemId);
             if (item) {
               for (let i = 0; i < quantity; i++) {
                 serialNo++;
@@ -131,28 +108,27 @@ export default function Transaction() {
             }
           });
 
-          const invoiceId = newInvoiceId;
           const oldCredits = qrCard.credits;
-          const totalItems = transactionData.length;
           const totalCredits = transactionData.reduce(
-            (acc, curr) =>
-              acc +
-              (itemListData?.find((item) => item.id === curr.item_id)
-                ?.credits || 0),
+            (acc, curr) => acc + (itemListData.find((item) => item.id === curr.item_id)?.credits || 0),
             0
           );
           const newCredits = oldCredits - totalCredits;
 
+          if (newCredits < 0) {
+            setErrorMessage("Insufficient Credits");
+            return;
+          }
+
           const invoiceData = {
             card_id: qrCard.id,
             invoice_no: invoiceNumber,
-            status: status.toString(),
+            status,
             old_credits: oldCredits,
             new_credits: newCredits,
           };
 
-          const { data: insertedInvoiceData, error: invoiceError } =
-            await insertInvoice(invoiceData);
+          const { error: invoiceError } = await insertInvoice(invoiceData);
           if (invoiceError) {
             throw new Error("Error inserting data into invoice table");
           }
@@ -164,7 +140,7 @@ export default function Transaction() {
 
           // Navigate to the invoice screen with the invoiceId parameter
           router.navigate(
-            `/invoice?invoiceId=${invoiceId}&credit=${oldCredits}&totalItems=${totalItems}&totalCredits=${totalCredits}`
+            `/invoice?invoiceId=${newInvoiceId}&credit=${oldCredits}&totalItems=${transactionData.length}`
           );
         } else {
           console.error("No matching card found for the QR code");
@@ -192,84 +168,33 @@ export default function Transaction() {
     );
   }
 
+  if (!accountExists) {
+    return (
+      <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
+        <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+        <View style={styles.noAccountContainer}>
+        <Text style={[styles.noAccountText, isDarkMode ? styles.darkNoAccountText : styles.lightNoAccountText]}>
+            No existing account under {qr}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const numColumns = 3;
   const screenWidth = Dimensions.get("window").width;
 
   return (
-    <View
-      style={[
-        styles.container,
-        isDarkMode ? styles.darkMode : styles.lightMode,
-      ]}
-    >
-      <View style={[styles.innerContainer]}>
-        <View
-          style={[
-            styles.header,
-            isDarkMode ? styles.darkHeader : styles.lightHeader,
-          ]}
-        >
-          <View style={styles.headerContent}>
-            <Image
-              source={require("@/assets/images/logo.png")}
-              style={styles.logo}
-            />
-            <Text
-              style={[
-                styles.headerText,
-                isDarkMode ? styles.darkHeaderText : styles.lightHeaderText,
-              ]}
-            >
-              Dormitory App
-            </Text>
-          </View>
-          <View style={styles.themeToggleContainer}>
-            <FontAwesome6
-              name={isDarkMode ? "sun" : "moon"}
-              size={24}
-              color={isDarkMode ? "#fff" : "#000"}
-              style={styles.themeIcon}
-            />
-            <Switch
-              value={isDarkMode}
-              onValueChange={toggleTheme}
-              style={styles.toggle}
-            />
-          </View>
-        </View>
-        <View
-          style={[
-            styles.infoContainer,
-            isDarkMode ? styles.infoContainerDark : styles.infoContainerLight,
-          ]}
-        >
-          <Text
-            style={[
-              styles.accountText,
-              isDarkMode ? styles.darkText : styles.lightText,
-            ]}
-          >
+    <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
+      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+      <View style={styles.innerContainer}>
+        <View style={[styles.infoContainer, isDarkMode ? styles.infoContainerDark : styles.infoContainerLight]}>
+          <Text style={[styles.accountText, isDarkMode ? styles.darkText : styles.lightText]}>
             Account: <Text style={styles.account}>{qr}</Text>
           </Text>
-          {credits !== null ? (
-            <Text
-              style={[
-                styles.accountText,
-                isDarkMode ? styles.darkText : styles.lightText,
-              ]}
-            >
-              Credits: <Text style={styles.account}>{credits}</Text>
-            </Text>
-          ) : (
-            <Text
-              style={[
-                styles.noCreditsText,
-                isDarkMode ? styles.darkText : styles.lightText,
-              ]}
-            >
-              No credits found for this QR code
-            </Text>
-          )}
+          <Text style={[styles.accountText, isDarkMode ? styles.darkText : styles.lightText]}>
+            Credits: <Text style={styles.account}>{credits}</Text>
+          </Text>
         </View>
         <FlatList
           style={styles.flatList}
@@ -282,52 +207,23 @@ export default function Transaction() {
                 { width: screenWidth / numColumns - 20 }, // Adjusted width to fit the screen
               ]}
             >
-              <Text
-                style={[
-                  styles.item,
-                  isDarkMode ? styles.darkText : styles.lightText,
-                ]}
-              >
-                {item.item}
-              </Text>
-              <Text
-                style={[
-                  styles.credits,
-                  isDarkMode ? styles.darkText : styles.lightText,
-                ]}
-              >
-                {item.credits} credit(s)
-              </Text>
+              <Text style={[styles.item, isDarkMode ? styles.darkText : styles.lightText]}>{item.item}</Text>
+              <Text style={[styles.credits, isDarkMode ? styles.darkText : styles.lightText]}>{item.credits} credit(s)</Text>
               <View style={styles.counterContainer}>
                 <TouchableOpacity
                   style={isDarkMode ? styles.darkButton : styles.lightButton}
                   onPress={() => decrementItem(item.id.toString())}
                 >
-                  <FontAwesome6
-                    name={"minus"}
-                    size={10}
-                    color={isDarkMode ? "#fff" : "#000"}
-                    style={styles.themeIcon}
-                  />
+                  <FontAwesome6 name={"minus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.themeIcon} />
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.counter,
-                    isDarkMode ? styles.darkText : styles.lightText,
-                  ]}
-                >
+                <Text style={[styles.counter, isDarkMode ? styles.darkText : styles.lightText]}>
                   {itemCount[item.id.toString()]}
                 </Text>
                 <TouchableOpacity
                   style={isDarkMode ? styles.darkButton : styles.lightButton}
                   onPress={() => incrementItem(item.id.toString())}
                 >
-                  <FontAwesome6
-                    name={"plus"}
-                    size={10}
-                    color={isDarkMode ? "#fff" : "#000"}
-                    style={styles.themeIcon}
-                  />
+                  <FontAwesome6 name={"plus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.themeIcon} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -335,17 +231,14 @@ export default function Transaction() {
           keyExtractor={(item) => item.id.toString()}
           numColumns={numColumns}
         />
+        {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
       </View>
       <TouchableOpacity
         style={isDarkMode ? styles.darkDoneButton : styles.lightDoneButton}
         onPress={handleDone}
         disabled={isInsertingTransaction || isInsertingInvoice}
       >
-        <Text
-          style={
-            isDarkMode ? styles.darkDoneButtonText : styles.lightDoneButtonText
-          }
-        >
+        <Text style={isDarkMode ? styles.darkDoneButtonText : styles.lightDoneButtonText}>
           Generate Invoice
         </Text>
       </TouchableOpacity>
@@ -359,6 +252,11 @@ export default function Transaction() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  noAccountContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   innerContainer: {
     paddingBottom: 10,
@@ -433,26 +331,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textDecorationLine: "underline",
   },
-  creditsText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#d6b53c",
-  },
-  lightCreditsText: {
-    color: "#d6b53c",
-  },
-  darkCreditsText: {
-    color: "#d6b53c",
-  },
   noCreditsText: {
     fontSize: 16,
     fontWeight: "bold",
-  },
-  lightNoCreditsText: {
-    color: "#dc3545",
-  },
-  darkNoCreditsText: {
-    color: "#e2e2e2",
   },
   loaderContainer: {
     flex: 1,
@@ -506,16 +387,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-  lightCounterButton: {
-    fontSize: 20,
-    marginHorizontal: 5,
-    color: "#333",
-  },
-  darkCounterButton: {
-    fontSize: 20,
-    marginHorizontal: 5,
-    color: "#e5e5e5",
-  },
   counter: {
     height: 30,
     fontSize: 16,
@@ -530,8 +401,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 50,
     alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
     borderRadius: 5,
     backgroundColor: "#edc01c",
   },
@@ -544,8 +413,6 @@ const styles = StyleSheet.create({
     height: 50,
     justifyContent: "center",
     alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
     borderRadius: 5,
     backgroundColor: "#d6b53c",
   },
@@ -557,27 +424,23 @@ const styles = StyleSheet.create({
   lightButton: {
     justifyContent: "center",
     alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
     borderRadius: 5,
     backgroundColor: "#edc01c",
-  },
-  lightButtonText: {
-    color: "#382d06",
-    fontSize: 18,
-    fontWeight: "bold",
   },
   darkButton: {
     justifyContent: "center",
     alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
     borderRadius: 5,
     backgroundColor: "#d6b53c",
   },
-  darkButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
+  noAccountText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  lightNoAccountText: {
+    color: '#dc3545',
+  },
+  darkNoAccountText: {
+    color: '#e2e2e2',
   },
 });

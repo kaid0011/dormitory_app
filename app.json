@@ -4,7 +4,7 @@
     "slug": "dormitory_app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/images/logo.png",
+    "icon": "./src/assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -13,9 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "icon": "./src/assets/images/icon.png",
       "supportsTablet": true
     },
     "android": {
+      "icon": "./src/assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

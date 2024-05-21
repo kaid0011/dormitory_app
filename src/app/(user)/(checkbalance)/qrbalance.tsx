@@ -9,7 +9,7 @@ export default function QRscanner() {
   const navigation = useNavigation();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
-  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [scanned, setScanned] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -29,11 +29,9 @@ export default function QRscanner() {
           We need your permission to show the camera
         </Text>
         <Button
-          onPress={() => {
-            (async () => {
-              const { status } = await Camera.requestCameraPermissionsAsync();
-              setHasPermission(status === "granted");
-            })();
+          onPress={async () => {
+            const { status } = await Camera.requestCameraPermissionsAsync();
+            setHasPermission(status === "granted");
           }}
           title="Grant Permission"
         />
@@ -50,10 +48,9 @@ export default function QRscanner() {
   };
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
-    setScannedData(data);
-    router.navigate(`/balance?qr=${scannedData}`);
-
- // Navigate to Transaction screen with scannedData as param
+    setScanned(true);
+    setTorchEnabled(false); // Turn off the torch
+    router.navigate(`/balance?qr=${data}`);
   };
 
   return (
@@ -64,7 +61,7 @@ export default function QRscanner() {
         }}
         style={styles.camera}
         facing="back"
-        enableTorch={torchEnabled ? true : false}
+        enableTorch={torchEnabled}
         onBarcodeScanned={handleBarCodeScanned}
       >
         <View style={styles.overlay}>

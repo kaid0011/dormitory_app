@@ -10,6 +10,7 @@ export interface InvoiceData {
   status: string;
   old_credits: number;
   new_credits: number;
+  total_credits: number;
 }
 
 export function useInsertInvoice() {
@@ -177,7 +178,8 @@ export function useInvoiceDetails(invoiceId: number) {
             ready_by: new Date(data.ready_by),
             status: data.status,
             old_credits: data.old_credits,
-            new_credits: data.new_credits
+            new_credits: data.new_credits,
+            total_credits: data.total_credits,
           });
         } else {
           throw new Error('Invoice not found');
