@@ -5,7 +5,8 @@ interface QrCard {
   id: number;
   card_no: string;
   credits: number;
-  // Add more properties as needed
+  account_id: number;
+  coupon_no: number;
 }
 
 export function useQrCardList() {
