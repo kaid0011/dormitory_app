@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, Switch } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, BackHandler } from 'react-native';
 import BouncyCheckbox from 'react-native-bouncy-checkbox';
+import { router } from 'expo-router';
 import { useAllInvoices, InvoiceData, useUpdateInvoiceStatus } from "@/api/invoice";
 import Header from "@/components/Header";
 
@@ -10,6 +11,21 @@ export default function ReturningLaundry() {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const { invoices, isLoading, isError, fetchAllInvoices } = useAllInvoices();
   const { updateInvoiceStatus, isUpdating } = useUpdateInvoiceStatus();
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   useEffect(() => {
     fetchAllInvoices();

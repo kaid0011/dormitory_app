@@ -19,8 +19,8 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="qrsending" options={{ headerShown: false }} />
-        <Stack.Screen name="invoice" options={{ headerShown: false }} />
         <Stack.Screen name="transaction" options={{ headerShown: false }} />
+        <Stack.Screen name="invoice" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

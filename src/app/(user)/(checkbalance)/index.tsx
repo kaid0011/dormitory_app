@@ -1,11 +1,26 @@
-import React, { useState } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Text, View, StyleSheet, TouchableOpacity, TextInput, BackHandler } from 'react-native';
 import { router } from 'expo-router';
 import Header from "@/components/Header";
 
 export default function InsertAccount() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [inputValue, setInputValue] = useState("");
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 

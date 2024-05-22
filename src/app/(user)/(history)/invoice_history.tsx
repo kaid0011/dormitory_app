@@ -6,13 +6,15 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Switch,
+  BackHandler
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { useInvoiceDetails } from "@/api/invoice";
 import { useQrCardById } from "@/api/qr_card";
 import { shareAsync } from "expo-sharing";
 import * as Print from "expo-print";
+import {  } from 'react-native';
+import { router } from "expo-router";
 import { useTransactionByInvoiceId } from "@/api/transaction";
 import { useItemList } from "@/api/item_list";
 import { Ionicons } from "@expo/vector-icons";
@@ -68,6 +70,21 @@ export default function Invoice() {
   const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useTransactionByInvoiceId(invoiceId.toString());
 
   const [pdfContent, setPdfContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/(history)'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   useEffect(() => {
     const generateAndDownloadPDF = async () => {

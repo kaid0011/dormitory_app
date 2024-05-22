@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Button, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Button, StyleSheet, Text, TouchableOpacity, View, BackHandler } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Camera, CameraView } from "expo-camera";
@@ -10,6 +10,21 @@ export default function QRscanner() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [scanned, setScanned] = useState(false);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/(checkbalance)'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   useEffect(() => {
     (async () => {

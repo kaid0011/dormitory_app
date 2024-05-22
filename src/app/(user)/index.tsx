@@ -1,10 +1,25 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Text, Pressable, Image, Switch } from "react-native";
-import { Link } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View, Text, Pressable, Image, Switch, BackHandler } from "react-native";
+import { Link, router } from "expo-router";
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 
 export default function HomeScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   // Toggle theme
   const toggleTheme = () => setIsDarkMode(!isDarkMode);

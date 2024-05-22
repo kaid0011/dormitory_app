@@ -7,6 +7,7 @@ import {
   Dimensions,
   TouchableOpacity,
   ActivityIndicator,
+  BackHandler
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { router } from "expo-router";
@@ -25,6 +26,7 @@ type TransactionData = {
 };
 
 export default function Transaction() {
+
   const route = useRoute();
   const { qr } = route.params as { qr: string };
 
@@ -40,6 +42,21 @@ export default function Transaction() {
   const { insertTransaction, isInserting: isInsertingTransaction, isError: insertTransactionError } = useInsertTransaction();
   const { insertInvoice, isInserting: isInsertingInvoice, isError: insertInvoiceError } = useInsertInvoice();
   const { lastInsertedInvoiceId, isLoading: invoiceIdLoading, isError: invoiceIdError } = useLastInsertedInvoiceId();
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/(sendinglaundry)'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   useEffect(() => {
     if (qrCardList) {
@@ -115,7 +132,7 @@ export default function Transaction() {
           );
           const newCredits = oldCredits - totalCredits;
 
-          if (newCredits < 0) {
+          if (newCredits < 0 || oldCredits === 0) {
             setErrorMessage("Insufficient Credits");
             return;
           }

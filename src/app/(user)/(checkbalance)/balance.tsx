@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
+import { Text, View, StyleSheet, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
 import { useRoute } from '@react-navigation/native';
+import { router } from 'expo-router';
 import { useQrCardList } from '@/api/qr_card';
 import Header from '@/components/Header';
 
@@ -13,6 +14,21 @@ const Balance = () => {
 
   const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
 
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/(checkbalance)'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
+  
   useEffect(() => {
     if (qrCardList) {
       const qrCard = qrCardList.find((item) => item.card_no === qr);

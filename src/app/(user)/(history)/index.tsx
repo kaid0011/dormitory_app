@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, Switch, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, BackHandler } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAllInvoices, InvoiceData } from "@/api/invoice";
 import { router } from 'expo-router';
@@ -22,6 +22,21 @@ const History = () => {
   useEffect(() => {
     setFilteredInvoices(invoices);
   }, [invoices]);
+
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
   const toggleStartDatePicker = () => setShowStartDatePicker(!showStartDatePicker);
