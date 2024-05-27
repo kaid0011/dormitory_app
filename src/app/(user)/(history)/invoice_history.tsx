@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   Text,
   View,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
@@ -13,12 +12,13 @@ import { useInvoiceDetails } from "@/api/invoice";
 import { useQrCardById } from "@/api/qr_card";
 import { shareAsync } from "expo-sharing";
 import * as Print from "expo-print";
-import {  } from 'react-native';
 import { router } from "expo-router";
 import { useTransactionByInvoiceId } from "@/api/transaction";
 import { useItemList } from "@/api/item_list";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "@/components/Header";
+import { styles } from "@/assets/styles/styles";
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 const formatDate = (date: Date) => {
   return date.toLocaleDateString("en-US", {
@@ -48,18 +48,17 @@ const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, itemList
   if (!item) return null;
 
   return (
-    <View style={styles.row}>
-      <Text style={[styles.cell, isDarkMode && styles.darkText]}>{transaction.serial_no}</Text>
-      <Text style={[styles.cell, isDarkMode && styles.darkText]}>{item.item}</Text>
-      <Text style={[styles.cell, isDarkMode && styles.darkText]}>{transaction.tag_no}</Text>
-      <Text style={[styles.cell, isDarkMode && styles.darkText]}>{item.credits}</Text>
+    <View style={styles.tableRow}>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{transaction.serial_no}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{item.item}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{transaction.tag_no}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{item.credits}</Text>
     </View>
   );
 };
 
 export default function Invoice() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
 
   const route = useRoute();
   const { invoiceId } = route.params as { invoiceId: number };
@@ -69,6 +68,7 @@ export default function Invoice() {
   const { data: itemList, isLoading: itemListLoading, isError: itemListError } = useItemList();
   const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useTransactionByInvoiceId(invoiceId.toString());
 
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
   const [pdfContent, setPdfContent] = useState<string | null>(null);
 
   useEffect(() => {
@@ -87,16 +87,39 @@ export default function Invoice() {
   }, [router]);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) {
+      // Set a timeout for 10 seconds
+      timeoutId = setTimeout(() => {
+        setIsTimedOut(true);
+      }, 10000); // 10 seconds
+    }
+
+    // Clear the timeout if data fetch completes
+    if (!(invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) && !(invoiceError || qrCardError || transactionsError || itemListError)) {
+      clearTimeout(timeoutId);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [invoiceLoading, qrCardLoading, transactionsLoading, itemListLoading, invoiceError, qrCardError, transactionsError, itemListError]);
+
+  useEffect(() => {
     const generateAndDownloadPDF = async () => {
       if (invoiceDetails && qrCard && transactions && itemList) {
         const transactionsContent = transactions.map((transaction, index) => {
           const item = itemList.find((item) => item.id === transaction.item_id);
           return item
             ? `<div class="row">
-                 <span class="cell ${isDarkMode ? 'darkText' : ''}">${index + 1}</span>
-                 <span class="cell ${isDarkMode ? 'darkText' : ''}">${item.item}</span>
-                 <span class="cell ${isDarkMode ? 'darkText' : ''}">${transaction.tag_no}</span>
-                 <span class="cell ${isDarkMode ? 'darkText' : ''}">${item.credits}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${index + 1}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${item.item}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${transaction.tag_no}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${item.credits}</span>
                </div>`
             : "";
         }).join("");
@@ -279,18 +302,26 @@ export default function Invoice() {
   const printToFile = async () => {
     if (!pdfContent) return;
     try {
-      const { uri } = await Print.printToFileAsync({ html: pdfContent });
+      const { uri } = await Print.printToFileAsync({ html: pdfContent, height: 842, width: 595 });
       await shareAsync(uri, { UTI: ".pdf", mimeType: "application/pdf" });
     } catch (error) {
       console.error("Printing error:", error);
     }
   };
 
-  if (invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) {
+  if ((invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) && !isTimedOut) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <ActivityIndicator size="large" color="#edc01c" />
+        <Text style={[styles.loadingText, isDarkMode ? styles.darkText : styles.lightText]}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (isTimedOut) {
+    return (
+      <View style={styles.timeoutContainer}>
+        <Text style={styles.timeoutText}>The request is taking longer than expected. Please try again later.</Text>
       </View>
     );
   }
@@ -304,260 +335,80 @@ export default function Invoice() {
   }
 
   return (
-    <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+    <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+      <Header/>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.invoiceContainer}>
-          <View style={styles.lineContainer}>
-            <View style={styles.line} />
-            <Text style={[styles.invoiceTitle, isDarkMode && styles.darkText]}>INVOICE</Text>
-            <View style={styles.line} />
+        <View style={styles.innerContainer}>
+          <View style={styles.orContainer}>
+            <View style={styles.orLine} />
+            <Text style={[styles.h1, isDarkMode ? styles.darkText : styles.lightText]}>INVOICE</Text>
+            <View style={styles.orLine} />
           </View>
-          <Text style={[styles.title, isDarkMode && styles.darkText]}>COTTON CARE DRY CLEANERS</Text>
-          <Text style={[styles.cardNo, isDarkMode && styles.darkText]}>{qrCard.card_no}</Text>
-          <View style={styles.detailsContainer}>
-            <View style={styles.detailsRow}>
-              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Invoice No:</Text>
-              <Text style={[styles.detail, isDarkMode && styles.darkText]}>{invoiceDetails.invoice_no}</Text>
+          <Text style={[styles.invoiceTitle, isDarkMode ? styles.darkText : styles.lightText]}>COTTON CARE DRY CLEANERS</Text>
+          <Text style={[styles.invoiceCardNo, isDarkMode ? styles.darkText : styles.lightText]}>{qrCard.card_no}</Text>
+          <View style={styles.invoiceDetailsContainer}>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Invoice No:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.invoice_no}</Text>
             </View>
-            <View style={styles.detailsRow}>
-              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Date:</Text>
-              <Text style={[styles.detail, isDarkMode && styles.darkText]}>{formatDate(new Date(invoiceDetails.date_time))}</Text>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Date:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatDate(new Date(invoiceDetails.date_time))}</Text>
             </View>
-            <View style={styles.detailsRow}>
-              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Time:</Text>
-              <Text style={[styles.detail, isDarkMode && styles.darkText]}>{formatTime(new Date(invoiceDetails.date_time))}</Text>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Time:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatTime(new Date(invoiceDetails.date_time))}</Text>
             </View>
-            <View style={styles.detailsRow}>
-              <Text style={[styles.detailLabel, isDarkMode && styles.darkText]}>Ready By:</Text>
-              <Text style={[styles.detail, isDarkMode && styles.darkText]}>{formatDate(new Date(invoiceDetails.ready_by))}</Text>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Ready By:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatDate(new Date(invoiceDetails.ready_by))}</Text>
             </View>
           </View>
-          <View style={styles.transactionContainer}>
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>S/No.</Text>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>Item(s)</Text>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>Tag No.</Text>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>Credit(s)</Text>
+          <View style={styles.invoiceTransactionContainer}>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>S/No.</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Item(s)</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Tag No.</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Credit(s)</Text>
             </View>
             {transactions.map((transaction, index) => (
               <TransactionItem key={index} transaction={transaction} itemList={itemList} isDarkMode={isDarkMode} />
             ))}
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.headerCell]}></Text>
-              <Text style={[styles.cell, styles.headerCell]}></Text>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>TOTAL:</Text>
-              <Text style={[styles.cell, styles.headerCell, isDarkMode && styles.darkText]}>{invoiceDetails.total_credits}</Text>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}></Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}></Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>TOTAL:</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.total_credits}</Text>
             </View>
           </View>
-          <View style={styles.credits}>
-            <Text style={[styles.creditsLabel, isDarkMode && styles.darkText]}>CREDITS STATUS</Text>
-            <View style={styles.tableCredits}>
-              <View style={styles.rowCredits}>
-                <Text style={[styles.creditsSub, isDarkMode && styles.darkText]}>FROM</Text>
-                <Text style={[styles.creditsValue, isDarkMode && styles.darkText]}>{invoiceDetails.old_credits}</Text>
+          <View style={styles.invoiceCreditsContainer}>
+            <Text style={[styles.invoiceCreditsLabel, isDarkMode ? styles.darkText : styles.lightText]}>CREDITS STATUS</Text>
+            <View style={styles.invoiceTableCredits}>
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>FROM</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.old_credits}</Text>
               </View>
-              <View style={styles.rowCredits}>
-                <Text style={[styles.creditsValue, isDarkMode && styles.darkText]}>
-                  <Ionicons name="trending-down" style={styles.icon} />
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>
+                  <Ionicons name="trending-down" style={styles.invoiceCreditIcon} />
                 </Text>
               </View>
-              <View style={styles.rowCredits}>
-                <Text style={[styles.creditsSub, isDarkMode && styles.darkText]}>TO</Text>
-                <Text style={[styles.creditsValue, isDarkMode && styles.darkText]}>{invoiceDetails.new_credits}</Text>
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>TO</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.new_credits}</Text>
               </View>
             </View>
           </View>
         </View>
       </ScrollView>
-      <View style={styles.printBg}>
-        <TouchableOpacity onPress={printToFile} style={isDarkMode ? styles.darkDownloadButton : styles.lightDownloadButton}>
-          <Text style={isDarkMode ? styles.darkDownloadButtonText : styles.lightDownloadButtonText}>Download</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={[styles.fullWidthButton, isDarkMode ? styles.darkButton : styles.lightButton]}
+        onPress={printToFile}
+      >
+        <Text style={[styles.h4, isDarkMode ? styles.darkButtonText : styles.lightButtonText]}>
+        Download
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-  },
-  container: {
-    flex: 1,
-  },
-  lightMode: {
-    backgroundColor: "#fdfdfd",
-  },
-  darkMode: {
-    backgroundColor: "#001b1d",
-  },
-  invoiceContainer: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  lineContainer: {
-    marginTop: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'center',
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#666',
-  },
-  invoiceTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 20,
-    marginBottom: 10,
-    paddingBottom: 10,
-    textAlign: "center",
-    marginHorizontal: 10,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: "bold",
-    marginBottom: 20,
-    padding: 10,
-    textAlign: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-  },
-  cardNo: {
-    fontSize: 30,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  detailsContainer: {
-    marginBottom: 20,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    borderTopWidth: 1,
-    borderTopColor: "#ccc",
-  },
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 5,
-  },
-  detailLabel: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  detail: {
-    flex: 2,
-    fontSize: 16,
-  },
-  transactionContainer: {
-    marginBottom: 10,
-  },
-  row: {
-    flexDirection: "row",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    alignItems: "center",
-  },
-  cell: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 16,
-  },
-  headerCell: {
-    fontWeight: "bold",
-  },
-  darkText: {
-    color: "#ffffff",
-  },
-  credits: {
-    marginTop: 25,
-    padding: 25,
-    alignItems: "center",
-    textAlign: "center",
-    borderColor: "gray",
-    borderWidth: 1,
-    borderRadius: 5,
-  },
-  creditsLabel: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-  },
-  icon: {
-    fontSize: 30,
-    color: "red",
-  },
-  tableCredits: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  rowCredits: {
-    flex: 1,
-    alignItems: "center",
-  },
-  creditsValue: {
-    fontSize: 25,
-    fontWeight: "bold",
-  },
-  creditsSub: {
-    fontSize: 12,
-  },
-  printBg: {
-    backgroundColor: "green",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  lightDownloadButton: {
-    justifyContent: "center",
-    height: 50,
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#edc01c",
-  },
-  lightDownloadButtonText: {
-    color: "#382d06",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  darkDownloadButton: {
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#d6b53c",
-  },
-  darkDownloadButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: "#333",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#dc3545",
-  },
-});

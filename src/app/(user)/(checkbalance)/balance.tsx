@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
+import { Text, View, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { useQrCardList } from '@/api/qr_card';
 import Header from '@/components/Header';
+import { styles } from '@/assets/styles/styles';
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
-const Balance = () => {
+export default function Balance() {
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
   const route = useRoute();
   const { qr } = route.params as { qr: string };
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [accountExists, setAccountExists] = useState<boolean | null>(null);
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
 
   const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
 
@@ -30,6 +33,29 @@ const Balance = () => {
   }, [router]);
   
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (qrCardLoading) {
+      // Set a timeout for 10 seconds
+      timeoutId = setTimeout(() => {
+        setIsTimedOut(true);
+      }, 10000); // 10 seconds
+    }
+
+    // Clear the timeout if data fetch completes
+    if (!qrCardLoading && !qrCardError) {
+      clearTimeout(timeoutId);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [qrCardLoading, qrCardError]);
+
+  useEffect(() => {
     if (qrCardList) {
       const qrCard = qrCardList.find((item) => item.card_no === qr);
       if (qrCard) {
@@ -42,13 +68,18 @@ const Balance = () => {
     }
   }, [qrCardList, qr]);
 
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
-
-  if (qrCardLoading) {
+  if (qrCardLoading && !isTimedOut) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <ActivityIndicator size="large" color="#edc01c" />
+        <Text style={[styles.loadingText, isDarkMode ? styles.darkText : styles.lightText]}>Loading...</Text>
+      </View>
+    );
+  }
+  if (isTimedOut) {
+    return (
+      <View style={styles.timeoutContainer}>
+        <Text style={styles.timeoutText}>The request is taking longer than expected. Please try again later.</Text>
       </View>
     );
   }
@@ -62,21 +93,21 @@ const Balance = () => {
   }
 
   return (
-    <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+    <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+      <Header/>
       <View style={styles.content}>
         {accountExists ? (
           <>
-            <Text style={[styles.qrText, isDarkMode ? styles.darkText : styles.lightText]}>
-              Account: <Text style={styles.qrCode}>{qr}</Text>
+            <Text style={[styles.h4, isDarkMode ? styles.darkText : styles.lightText]}>
+              Account: <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>{qr}</Text>
             </Text>
-            <View style={[styles.creditsContainer, isDarkMode ? styles.darkContainer : styles.lightContainer]}>
-              <Text style={styles.creditsText}>Remaining Credits:</Text>
-              <Text style={[styles.creditValue, isDarkMode ? styles.darkCreditValue : styles.lightCreditValue]}>{credits}</Text>
+            <View style={[styles.balanceCreditsContainer, isDarkMode ? styles.darkCard : styles.lightCard]}>
+              <Text style={styles.balanceCreditsText}>Remaining Credits:</Text>
+              <Text style={[styles.balanceCreditValue, isDarkMode ? styles.darkText : styles.lightText]}>{credits}</Text>
             </View>
           </>
         ) : (
-          <Text style={[styles.noAccountText, isDarkMode ? styles.darkNoAccountText : styles.lightNoAccountText]}>
+          <Text style={[styles.noAccountText, isDarkMode ? styles.darkRedText : styles.lightRedText]}>
             No existing account under {qr}
           </Text>
         )}
@@ -84,109 +115,3 @@ const Balance = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  lightMode: {
-    backgroundColor: '#f5f5f5',
-  },
-  darkMode: {
-    backgroundColor: '#001b1d',
-  },
-  lightText: {
-    color: '#000',
-  },
-  darkText: {
-    color: '#e5e5e5',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  qrCode: {
-    textDecorationLine: 'underline',
-  },
-  creditsContainer: {
-    width: Dimensions.get('window').width * 0.7,
-    height: Dimensions.get('window').width * 0.7,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: Dimensions.get('window').width * 0.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-    marginTop: 20,
-  },
-  lightContainer: {
-    backgroundColor: '#fff',
-  },
-  darkContainer: {
-    backgroundColor: '#333',
-  },
-  creditsText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#d6b53c',
-  },
-  creditValue: {
-    fontSize: 50,
-    fontWeight: 'bold',
-  },
-  lightCreditValue: {
-    color: '#333',
-  },
-  darkCreditValue: {
-    color: '#e5e5e5',
-  },
-  noCreditsText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  lightNoCreditsText: {
-    color: '#dc3545',
-  },
-  darkNoCreditsText: {
-    color: '#e2e2e2',
-  },
-  noAccountText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  lightNoAccountText: {
-    color: '#dc3545',
-  },
-  darkNoAccountText: {
-    color: '#e2e2e2',
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#333',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#dc3545',
-  },
-});
-
-export default Balance;

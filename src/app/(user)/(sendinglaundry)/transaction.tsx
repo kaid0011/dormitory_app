@@ -2,12 +2,11 @@ import React, { useEffect, useState } from "react";
 import {
   Text,
   View,
-  StyleSheet,
   FlatList,
   Dimensions,
   TouchableOpacity,
-  ActivityIndicator,
-  BackHandler
+  BackHandler,
+  ActivityIndicator
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { router } from "expo-router";
@@ -17,6 +16,9 @@ import { useInsertInvoice, useLastInsertedInvoiceId } from "@/api/invoice";
 import { useInsertTransaction } from "@/api/transaction";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Header from "@/components/Header";
+import { styles } from "@/assets/styles/styles";
+import FontText from "@/components/FontText";
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 // Define the TransactionData type
 type TransactionData = {
@@ -26,19 +28,18 @@ type TransactionData = {
 };
 
 export default function Transaction() {
-
   const route = useRoute();
   const { qr } = route.params as { qr: string };
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
   const [itemCount, setItemCount] = useState<{ [key: string]: number }>({});
   const [credits, setCredits] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [accountExists, setAccountExists] = useState<boolean>(true);
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
 
   const { data: itemListData, isLoading: itemListLoading, isError: itemListError } = useItemList();
   const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
-
   const { insertTransaction, isInserting: isInsertingTransaction, isError: insertTransactionError } = useInsertTransaction();
   const { insertInvoice, isInserting: isInsertingInvoice, isError: insertInvoiceError } = useInsertInvoice();
   const { lastInsertedInvoiceId, isLoading: invoiceIdLoading, isError: invoiceIdError } = useLastInsertedInvoiceId();
@@ -57,6 +58,29 @@ export default function Transaction() {
       BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
     };
   }, [router]);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (qrCardLoading || itemListLoading || invoiceIdLoading) {
+      // Set a timeout for 10 seconds
+      timeoutId = setTimeout(() => {
+        setIsTimedOut(true);
+      }, 10000); // 10 seconds
+    }
+
+    // Clear the timeout if data fetch completes
+    if (!qrCardLoading && !itemListLoading && !invoiceIdLoading && !qrCardError && !itemListError && !invoiceIdError) {
+      clearTimeout(timeoutId);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [qrCardLoading, itemListLoading, invoiceIdLoading, qrCardError, itemListError, invoiceIdError]);
 
   useEffect(() => {
     if (qrCardList) {
@@ -80,8 +104,6 @@ export default function Transaction() {
       setItemCount(counts);
     }
   }, [itemListData]);
-
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   const incrementItem = (id: string) => {
     setItemCount((prevCounts) => ({ ...prevCounts, [id]: prevCounts[id] + 1 }));
@@ -137,6 +159,11 @@ export default function Transaction() {
             return;
           }
 
+          if (totalCredits === 0) {
+            setErrorMessage("Please add an item");
+            return;
+          }
+
           const invoiceData = {
             card_id: qrCard.id,
             invoice_no: invoiceNumber,
@@ -170,9 +197,17 @@ export default function Transaction() {
 
   if (itemListLoading || qrCardLoading || invoiceIdLoading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-        <Text style={styles.loadingText}>Loading...</Text>
+      <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <ActivityIndicator size="large" color="#edc01c" />
+        <Text style={[styles.loadingText, isDarkMode ? styles.darkText : styles.lightText]}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (isTimedOut) {
+    return (
+      <View style={styles.timeoutContainer}>
+        <Text style={styles.timeoutText}>The request is taking longer than expected. Please try again later.</Text>
       </View>
     );
   }
@@ -187,10 +222,10 @@ export default function Transaction() {
 
   if (!accountExists) {
     return (
-      <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-        <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
-        <View style={styles.noAccountContainer}>
-        <Text style={[styles.noAccountText, isDarkMode ? styles.darkNoAccountText : styles.lightNoAccountText]}>
+      <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <Header/>
+        <View style={styles.centerContainer}>
+          <Text style={[styles.h3, isDarkMode ? styles.darkRedText : styles.lightRedText]}>
             No existing account under {qr}
           </Text>
         </View>
@@ -202,19 +237,19 @@ export default function Transaction() {
   const screenWidth = Dimensions.get("window").width;
 
   return (
-    <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
-      <View style={styles.innerContainer}>
-        <View style={[styles.infoContainer, isDarkMode ? styles.infoContainerDark : styles.infoContainerLight]}>
-          <Text style={[styles.accountText, isDarkMode ? styles.darkText : styles.lightText]}>
-            Account: <Text style={styles.account}>{qr}</Text>
-          </Text>
-          <Text style={[styles.accountText, isDarkMode ? styles.darkText : styles.lightText]}>
-            Credits: <Text style={styles.account}>{credits}</Text>
-          </Text>
-        </View>
+    <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+      <Header/>
+      <View style={styles.infoContainer}>
+        <Text style={[styles.h4, isDarkMode ? styles.darkText : styles.lightText]}>
+          Account: <Text style={styles.details}>{qr}</Text>
+        </Text>
+        <Text style={[styles.h4, isDarkMode ? styles.darkText : styles.lightText]}>
+          Credits: <Text style={styles.details}>{credits}</Text>
+        </Text>
+      </View>
+      <View style={styles.itemListContiner}>
         <FlatList
-          style={styles.flatList}
+          style={styles.itemList}
           data={itemListData}
           renderItem={({ item }) => (
             <View
@@ -228,19 +263,19 @@ export default function Transaction() {
               <Text style={[styles.credits, isDarkMode ? styles.darkText : styles.lightText]}>{item.credits} credit(s)</Text>
               <View style={styles.counterContainer}>
                 <TouchableOpacity
-                  style={isDarkMode ? styles.darkButton : styles.lightButton}
+                  style={[styles.counterButton, isDarkMode ? styles.darkButton : styles.lightButton]}
                   onPress={() => decrementItem(item.id.toString())}
                 >
-                  <FontAwesome6 name={"minus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.themeIcon} />
+                  <FontAwesome6 name={"minus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.expressionIcon} />
                 </TouchableOpacity>
                 <Text style={[styles.counter, isDarkMode ? styles.darkText : styles.lightText]}>
                   {itemCount[item.id.toString()]}
                 </Text>
                 <TouchableOpacity
-                  style={isDarkMode ? styles.darkButton : styles.lightButton}
+                  style={[styles.counterButton, isDarkMode ? styles.darkButton : styles.lightButton]}
                   onPress={() => incrementItem(item.id.toString())}
                 >
-                  <FontAwesome6 name={"plus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.themeIcon} />
+                  <FontAwesome6 name={"plus"} size={10} color={isDarkMode ? "#fff" : "#000"} style={styles.expressionIcon} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -248,14 +283,14 @@ export default function Transaction() {
           keyExtractor={(item) => item.id.toString()}
           numColumns={numColumns}
         />
-        {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
       </View>
+      {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
       <TouchableOpacity
-        style={isDarkMode ? styles.darkDoneButton : styles.lightDoneButton}
+        style={[styles.fullWidthButton, isDarkMode ? styles.darkButton : styles.lightButton]}
         onPress={handleDone}
         disabled={isInsertingTransaction || isInsertingInvoice}
       >
-        <Text style={isDarkMode ? styles.darkDoneButtonText : styles.lightDoneButtonText}>
+        <Text style={[styles.h4, isDarkMode ? styles.darkButtonText : styles.lightButtonText]}>
           Generate Invoice
         </Text>
       </TouchableOpacity>
@@ -265,199 +300,3 @@ export default function Transaction() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  noAccountContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  innerContainer: {
-    paddingBottom: 10,
-    flex: 2,
-  },
-  lightMode: {
-    backgroundColor: "#f5f5f5",
-  },
-  darkMode: {
-    backgroundColor: "#001b1d",
-  },
-  header: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 30,
-    paddingTop: 60,
-    paddingBottom: 20,
-    flexDirection: "row",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  lightText: {
-    color: "#000",
-  },
-  darkText: {
-    color: "#e5e5e5",
-  },
-  lightHeader: {
-    backgroundColor: "#00545E",
-  },
-  darkHeader: {
-    backgroundColor: "#002a2e",
-  },
-  lightHeaderText: {
-    color: "#e2e2e2",
-  },
-  darkHeaderText: {
-    color: "#e2e2e2",
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  infoContainer: {
-    padding: 20,
-  },
-  infoContainerLight: {},
-  infoContainerDark: {
-    backgroundColor: "#333",
-  },
-  themeToggleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  themeIcon: {
-    padding: 5,
-  },
-  toggle: {},
-  logo: {
-    width: 50,
-    height: 50,
-    marginRight: 10,
-  },
-  accountText: {
-    fontSize: 18,
-    marginBottom: 10,
-  },
-  account: {
-    fontWeight: "bold",
-    textDecorationLine: "underline",
-  },
-  noCreditsText: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: "#333",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#dc3545",
-  },
-  flatList: {
-    padding: 10,
-    flex: 1,
-    borderTopWidth: 2,
-    borderTopColor: "#ccc",
-  },
-  card: {
-    alignItems: "center",
-    justifyContent: "center",
-    margin: 5,
-    padding: 15,
-    borderRadius: 10,
-    elevation: 3,
-  },
-  lightCard: {
-    backgroundColor: "#fff",
-  },
-  darkCard: {
-    backgroundColor: "#333",
-  },
-  item: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
-  credits: {
-    fontSize: 14,
-  },
-  counterContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 20,
-  },
-  counter: {
-    height: 30,
-    fontSize: 16,
-    marginHorizontal: 5,
-    padding: 5,
-    borderColor: "#e5e5e5",
-    borderWidth: 0.8,
-    borderRadius: 5,
-    aspectRatio: 1,
-  },
-  lightDoneButton: {
-    justifyContent: "center",
-    height: 50,
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#edc01c",
-  },
-  lightDoneButtonText: {
-    color: "#382d06",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  darkDoneButton: {
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#d6b53c",
-  },
-  darkDoneButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  lightButton: {
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#edc01c",
-  },
-  darkButton: {
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 5,
-    backgroundColor: "#d6b53c",
-  },
-  noAccountText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  lightNoAccountText: {
-    color: '#dc3545',
-  },
-  darkNoAccountText: {
-    color: '#e2e2e2',
-  },
-});

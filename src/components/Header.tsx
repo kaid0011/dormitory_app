@@ -1,21 +1,20 @@
-// Header.tsx
 import React from "react";
-import { View, Text, StyleSheet, Switch, Image } from "react-native";
+import { View, StyleSheet, Switch, Image } from "react-native";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import FontText from "./FontText";
+import { useTheme } from '@/components/ThemeContext';
+import { styles } from "@/assets/styles/styles";
 
-interface HeaderProps {
-  isDarkMode: boolean;
-  toggleTheme: () => void;
-}
+const Header: React.FC = () => {
+  const { isDarkMode, toggleTheme } = useTheme();
 
-const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleTheme }) => {
   return (
     <View style={[styles.header, isDarkMode ? styles.darkHeader : styles.lightHeader]}>
       <View style={styles.headerContent}>
-        <Image source={require("@/assets/images/icon.png")} style={styles.logo} />
-        <Text style={[styles.greeting, isDarkMode ? styles.darkHeaderText : styles.lightHeaderText]}>
+        <Image source={require("@/assets/images/icon.png")} style={styles.headerLogo} />
+        <FontText style={[styles.h2, isDarkMode ? styles.darkHeaderText : styles.lightHeaderText]}>
           Dormitory App
-        </Text>
+        </FontText>
       </View>
       <View style={styles.themeToggleContainer}>
         <FontAwesome6
@@ -33,50 +32,5 @@ const Header: React.FC<HeaderProps> = ({ isDarkMode, toggleTheme }) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  header: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 30,
-    paddingTop: 60,
-    paddingBottom: 20,
-    flexDirection: "row",
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  lightHeader: {
-    backgroundColor: "#00545E",
-  },
-  darkHeader: {
-    backgroundColor: "#002a2e",
-  },
-  lightHeaderText: {
-    color: "#e2e2e2",
-  },
-  darkHeaderText: {
-    color: "#e2e2e2",
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  themeToggleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  themeIcon: {
-    marginRight: 10,
-  },
-  toggle: {},
-  logo: {
-    width: 50,
-    height: 50,
-  },
-});
 
 export default Header;

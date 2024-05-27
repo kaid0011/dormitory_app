@@ -4,8 +4,11 @@ import { useNavigation } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Camera, CameraView } from "expo-camera";
 import { MaterialIcons } from "@expo/vector-icons";
+import { styles } from "@/assets/styles/styles";
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 export default function QRscanner() {
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
   const navigation = useNavigation();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [torchEnabled, setTorchEnabled] = useState(false);
@@ -13,7 +16,7 @@ export default function QRscanner() {
 
   useEffect(() => {
     const handleBackPress = () => {
-      router.replace('/(checkbalance)'); // Use replace to prevent going back to two.tsx
+      router.replace('/(sendinglaundry)'); // Use replace to prevent going back to two.tsx
       return true; // This prevents the default back button behavior
     };
 
@@ -79,11 +82,11 @@ export default function QRscanner() {
         enableTorch={torchEnabled}
         onBarcodeScanned={handleBarCodeScanned}
       >
-        <View style={styles.overlay}>
-          <View style={styles.square} />
+        <View style={styles.qrOverlay}>
+          <View style={styles.qrSquare} />
           <Text style={styles.scanText}>Scan QR Code</Text>
         </View>
-        <View style={styles.buttonContainer}>
+        <View style={styles.qrButtonContainer}>
           <TouchableOpacity style={styles.torchButton} onPress={handleTorch}>
             <MaterialIcons
               name={torchEnabled ? "flash-off" : "flash-on"}
@@ -99,51 +102,3 @@ export default function QRscanner() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  square: {
-    width: 250,
-    height: 250,
-    borderColor: "white",
-    borderWidth: 4,
-  },
-  scanText: {
-    color: "white",
-    fontSize: 16,
-    marginTop: 16,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    position: "absolute",
-    bottom: 40,
-    left: 16,
-    right: 16,
-    justifyContent: "space-around",
-  },
-  torchButton: {
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    padding: 12,
-    borderRadius: 8,
-  },
-  closeButton: {
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    padding: 12,
-    borderRadius: 8,
-  },
-});

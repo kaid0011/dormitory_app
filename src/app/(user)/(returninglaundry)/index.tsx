@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, BackHandler } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, BackHandler, ActivityIndicator } from 'react-native';
 import BouncyCheckbox from 'react-native-bouncy-checkbox';
 import { router } from 'expo-router';
 import { useAllInvoices, InvoiceData, useUpdateInvoiceStatus } from "@/api/invoice";
 import Header from "@/components/Header";
+import { styles } from '@/assets/styles/styles';
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 export default function ReturningLaundry() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
   const [selectAll, setSelectAll] = useState<boolean>(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const { invoices, isLoading, isError, fetchAllInvoices } = useAllInvoices();
   const { updateInvoiceStatus, isUpdating } = useUpdateInvoiceStatus();
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
+
+  
+  useEffect(() => {
+    fetchAllInvoices();
+  }, []);
+
 
   useEffect(() => {
     const handleBackPress = () => {
@@ -28,12 +37,30 @@ export default function ReturningLaundry() {
   }, [router]);
 
   useEffect(() => {
-    fetchAllInvoices();
-  }, []);
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (isLoading) {
+      // Set a timeout for 10 seconds
+      timeoutId = setTimeout(() => {
+        setIsTimedOut(true);
+      }, 10000); // 10 seconds
+    }
+
+    // Clear the timeout if data fetch completes
+    if (!isLoading && !isError) {
+      clearTimeout(timeoutId);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isLoading, isError]);
 
   const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'Ongoing');
 
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
   const toggleSelectAll = () => {
     setSelectAll(!selectAll);
     setSelectedItems(selectAll ? [] : ongoingInvoices.map(item => item.id));
@@ -57,7 +84,7 @@ export default function ReturningLaundry() {
   };
 
   const renderItem = ({ item }: { item: InvoiceData }) => (
-    <View style={[styles.itemContainer, isDarkMode ? styles.darkList : styles.lightList]}>
+    <View style={[styles.returningListContainer, isDarkMode ? styles.darkCard : styles.lightCard]}>
       <BouncyCheckbox
         isChecked={selectedItems.includes(item.id)}
         onPress={() => toggleItemSelection(item.id)}
@@ -65,39 +92,57 @@ export default function ReturningLaundry() {
         fillColor="green"
         iconStyle={{ borderColor: 'green', marginLeft: 10 }}
       />
-      <View style={styles.itemDetails}>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
-          <Text style={styles.bold}>Invoice No.:</Text> {item.invoice_no}
+      <View style={styles.returningDetails}>
+        <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Invoice No.:</Text> {item.invoice_no}
         </Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
-          <Text style={styles.bold}>Card No.:</Text> {item.card_id}
+        <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Coupon No.:</Text> {item.card_no}
         </Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
-          <Text style={styles.bold}>Date:</Text> {new Date(item.date_time).toLocaleDateString()}
+        <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Date:</Text> {new Date(item.date_time).toLocaleDateString()}
         </Text>
-        <Text style={[styles.itemText, isDarkMode ? styles.darkText : styles.lightText]}>
-          <Text style={styles.bold}>Time:</Text> {new Date(item.date_time).toLocaleTimeString()}
+        <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
+          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Time:</Text> {new Date(item.date_time).toLocaleTimeString()}
         </Text>
       </View>
     </View>
   );
 
-  if (isLoading) {
-    return <Text>Loading...</Text>;
+  
+  if (isLoading && !isTimedOut) {
+    return (
+      <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <ActivityIndicator size="large" color="#edc01c" />
+        <Text style={[styles.loadingText, isDarkMode ? styles.darkText : styles.lightText]}>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (isTimedOut) {
+    return (
+      <View style={styles.timeoutContainer}>
+        <Text style={styles.timeoutText}>The request is taking longer than expected. Please try again later.</Text>
+      </View>
+    );
   }
 
   if (isError) {
-    return <Text>Error fetching data</Text>;
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error fetching data</Text>
+      </View>
+    );
   }
 
   return (
-    <View style={[styles.container, isDarkMode ? styles.darkMode : styles.lightMode]}>
-      <Header isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
+    <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+      <Header/>
       <FlatList
         data={ongoingInvoices}
         renderItem={renderItem}
         keyExtractor={item => item.id.toString()}
-        style={styles.flatList}
+        style={styles.returningList}
       />
       <View style={[styles.footer, isDarkMode ? styles.darkFooter : styles.lightFooter]}>
         <BouncyCheckbox
@@ -110,7 +155,7 @@ export default function ReturningLaundry() {
           textStyle={isDarkMode ? styles.darkText : styles.lightText}
         />
         <TouchableOpacity
-          style={isDarkMode ? styles.darkButton : styles.lightButton}
+          style={[styles.returnButton, isDarkMode ? styles.darkButton : styles.lightButton]}
           onPress={handleReturn}
           disabled={isUpdating}
         >
@@ -120,88 +165,3 @@ export default function ReturningLaundry() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  lightMode: {
-    backgroundColor: "#fdfdfd",
-  },
-  darkMode: {
-    backgroundColor: "#001b1d",
-  },
-  flatList: {
-    padding: 10,
-    flex: 1,
-  },
-  itemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-  },
-  lightList: {
-    backgroundColor: '#f0f0f0',
-  },
-  darkList: {
-    backgroundColor: '#333',
-  },
-  itemDetails: {
-    marginLeft: 10,
-  },
-  itemText: {
-    fontSize: 16,
-  },
-  lightText: {
-    color: '#000',
-  },
-  darkText: {
-    color: '#e5e5e5',
-  },
-  bold: {
-    fontWeight: 'bold',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  lightFooter: {
-    backgroundColor: '#f0f0f0',
-  },
-  darkFooter: {
-    backgroundColor: '#333',
-  },
-  lightButton: {
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: "#edc01c",
-  },
-  lightButtonText: {
-    color: "#382d06",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  darkButton: {
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: "#d6b53c",
-  },
-  darkButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-});
