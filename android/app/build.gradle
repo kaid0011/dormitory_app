@@ -83,7 +83,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.kaid_0011.dormitory_app'
+    namespace "com.kaid_0011.dormitory_app"
     defaultConfig {
         applicationId 'com.kaid_0011.dormitory_app'
         minSdkVersion rootProject.ext.minSdkVersion

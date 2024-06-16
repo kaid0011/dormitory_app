@@ -1,4 +1,3 @@
-// ThemeContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Appearance } from 'react-native';
@@ -16,21 +15,33 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const loadTheme = async () => {
-      const savedTheme = await AsyncStorage.getItem('theme');
-      if (savedTheme) {
-        setIsDarkMode(savedTheme === 'dark');
-      } else {
-        const systemTheme = Appearance.getColorScheme();
-        setIsDarkMode(systemTheme === 'dark');
+      try {
+        const savedTheme = await AsyncStorage.getItem('theme');
+        if (savedTheme !== null) {
+          setIsDarkMode(savedTheme === 'dark');
+          console.log('Loaded theme from AsyncStorage:', savedTheme);
+        } else {
+          const systemTheme = Appearance.getColorScheme();
+          setIsDarkMode(systemTheme === 'dark');
+          console.log('Loaded system theme:', systemTheme);
+        }
+      } catch (error) {
+        console.error('Failed to load theme from AsyncStorage:', error);
       }
     };
+
     loadTheme();
-  }, []);
+  }, []); // Run only once on component mount
 
   const toggleTheme = async () => {
     const newTheme = !isDarkMode ? 'dark' : 'light';
     setIsDarkMode(!isDarkMode);
-    await AsyncStorage.setItem('theme', newTheme);
+    try {
+      await AsyncStorage.setItem('theme', newTheme);
+      console.log('Saved theme to AsyncStorage:', newTheme);
+    } catch (error) {
+      console.error('Failed to save theme to AsyncStorage:', error);
+    }
   };
 
   return (

@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Text, View, Pressable, BackHandler } from "react-native";
 import { Link, router } from "expo-router";
 import { styles } from '@/assets/styles/styles';
-import Header from "@/components/Header";
+import HeaderIndex from "@/components/HeaderIndex";
 import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 export default function HomeScreen() {
@@ -25,7 +25,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
-      <Header/>
+      <HeaderIndex/>
       <View style={styles.directoryContainer}>
         {["Sending Laundry", "Returning Laundry", "Check Balance", "History"].map((label, index) => (
           <Link

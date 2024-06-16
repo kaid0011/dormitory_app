@@ -628,4 +628,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
   },
   // ---------- end of error styles ----------
+  backButton: {
+    paddingRight: 20,
+  }
 });
