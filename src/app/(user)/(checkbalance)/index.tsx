@@ -3,7 +3,6 @@ import { Text, View, TouchableOpacity, TextInput, BackHandler } from 'react-nati
 import { router } from 'expo-router';
 import Header from "@/components/Header";
 import { styles } from '@/assets/styles/styles';
-import FontText from '@/components/FontText';
 import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 export default function InsertCoupon() {

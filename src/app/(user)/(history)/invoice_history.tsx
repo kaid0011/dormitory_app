@@ -8,12 +8,12 @@ import {
   BackHandler
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
-import { useInvoiceDetails } from "@/api/invoice";
-import { useQrCardById } from "@/api/qr_card";
+import { useInvoiceDetails } from "@/api/invoices";
+import { useCouponById } from "@/api/coupons";
 import { shareAsync } from "expo-sharing";
 import * as Print from "expo-print";
 import { router } from "expo-router";
-import { useTransactionByInvoiceId } from "@/api/transaction";
+import { useTransactionByInvoiceId } from "@/api/transactions";
 import { useItemList } from "@/api/item_list";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "@/components/Header";
@@ -64,7 +64,7 @@ export default function Invoice() {
   const { invoiceId } = route.params as { invoiceId: number };
 
   const { invoiceDetails, isLoading: invoiceLoading, isError: invoiceError } = useInvoiceDetails(invoiceId);
-  const { qrCard, isLoading: qrCardLoading, isError: qrCardError } = useQrCardById(invoiceDetails?.card_id || 0);
+  const { coupon, isLoading: couponLoading, isError: couponError } = useCouponById(invoiceDetails?.coupon_id || 0);
   const { data: itemList, isLoading: itemListLoading, isError: itemListError } = useItemList();
   const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useTransactionByInvoiceId(invoiceId.toString());
 
@@ -89,7 +89,7 @@ export default function Invoice() {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | undefined;
 
-    if (invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) {
+    if (invoiceLoading || couponLoading || transactionsLoading || itemListLoading) {
       // Set a timeout for 10 seconds
       timeoutId = setTimeout(() => {
         setIsTimedOut(true);
@@ -97,7 +97,7 @@ export default function Invoice() {
     }
 
     // Clear the timeout if data fetch completes
-    if (!(invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) && !(invoiceError || qrCardError || transactionsError || itemListError)) {
+    if (!(invoiceLoading || couponLoading || transactionsLoading || itemListLoading) && !(invoiceError || couponError || transactionsError || itemListError)) {
       clearTimeout(timeoutId);
     }
 
@@ -107,11 +107,11 @@ export default function Invoice() {
         clearTimeout(timeoutId);
       }
     };
-  }, [invoiceLoading, qrCardLoading, transactionsLoading, itemListLoading, invoiceError, qrCardError, transactionsError, itemListError]);
+  }, [invoiceLoading, couponLoading, transactionsLoading, itemListLoading, invoiceError, couponError, transactionsError, itemListError]);
 
   useEffect(() => {
     const generateAndDownloadPDF = async () => {
-      if (invoiceDetails && qrCard && transactions && itemList) {
+      if (invoiceDetails && coupon && transactions && itemList) {
         const transactionsContent = transactions.map((transaction, index) => {
           const item = itemList.find((item) => item.id === transaction.item_id);
           return item
@@ -234,7 +234,7 @@ export default function Invoice() {
           <div class="container">
             <div class="invoiceContainer">
               <h1 class="title">COTTON CARE DRY CLEANERS</h1>
-              <h2 class="cardNo">${qrCard.card_no}</h2>
+              <h2 class="cardNo">${coupon.coupon_no}</h2>
               <div class="detailsContainer">
                 <div class="detailsRow">
                   <span class="detailLabel">Invoice No:</span>
@@ -275,7 +275,7 @@ export default function Invoice() {
                 <div class="tableCredits">
                   <div class="rowCredits">
                     <span class="creditsSub">FROM</span>
-                    <span class="creditsValue">${invoiceDetails.old_credits}</span>
+                    <span class="creditsValue">${invoiceDetails.old_balance}</span>
                   </div>
                   <div class="rowCredits">
                     <span class="creditsValue">
@@ -284,7 +284,7 @@ export default function Invoice() {
                   </div>
                   <div class="rowCredits">
                     <span class="creditsSub">TO</span>
-                    <span class="creditsValue">${invoiceDetails.new_credits}</span>
+                    <span class="creditsValue">${invoiceDetails.new_balance}</span>
                   </div>
                 </div>
               </div>
@@ -297,7 +297,7 @@ export default function Invoice() {
       }
     };
     generateAndDownloadPDF();
-  }, [invoiceDetails, qrCard, transactions, itemList, isDarkMode]);
+  }, [invoiceDetails, coupon, transactions, itemList, isDarkMode]);
 
   const printToFile = async () => {
     if (!pdfContent) return;
@@ -309,7 +309,7 @@ export default function Invoice() {
     }
   };
 
-  if ((invoiceLoading || qrCardLoading || transactionsLoading || itemListLoading) && !isTimedOut) {
+  if ((invoiceLoading || couponLoading || transactionsLoading || itemListLoading) && !isTimedOut) {
     return (
       <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
         <ActivityIndicator size="large" color="#edc01c" />
@@ -326,7 +326,7 @@ export default function Invoice() {
     );
   }
 
-  if (invoiceError || qrCardError || transactionsError || itemListError || !invoiceDetails || !qrCard || !transactions || !itemList) {
+  if (invoiceError || couponError || transactionsError || itemListError || !invoiceDetails || !coupon || !transactions || !itemList) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Error fetching data</Text>
@@ -345,7 +345,7 @@ export default function Invoice() {
             <View style={styles.orLine} />
           </View>
           <Text style={[styles.invoiceTitle, isDarkMode ? styles.darkText : styles.lightText]}>COTTON CARE DRY CLEANERS</Text>
-          <Text style={[styles.invoiceCardNo, isDarkMode ? styles.darkText : styles.lightText]}>{qrCard.card_no}</Text>
+          <Text style={[styles.invoiceCardNo, isDarkMode ? styles.darkText : styles.lightText]}>{coupon.coupon_no}</Text>
           <View style={styles.invoiceDetailsContainer}>
             <View style={styles.invoiceDetailsRow}>
               <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Invoice No:</Text>
@@ -386,7 +386,7 @@ export default function Invoice() {
             <View style={styles.invoiceTableCredits}>
               <View style={styles.invoiceRowCredits}>
                 <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>FROM</Text>
-                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.old_credits}</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.old_balance}</Text>
               </View>
               <View style={styles.invoiceRowCredits}>
                 <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>
@@ -395,7 +395,7 @@ export default function Invoice() {
               </View>
               <View style={styles.invoiceRowCredits}>
                 <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>TO</Text>
-                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.new_credits}</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.new_balance}</Text>
               </View>
             </View>
           </View>

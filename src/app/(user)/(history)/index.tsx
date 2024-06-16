@@ -8,7 +8,7 @@ import {
   BackHandler,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useAllInvoices, InvoiceData } from "@/api/invoice";
+import { useAllInvoices, InvoiceData } from "@/api/invoices";
 import { router } from "expo-router";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Header from "@/components/Header";
@@ -125,7 +125,7 @@ export default function History() {
               isDarkMode ? styles.darkText : styles.lightText,
             ]}
           >
-            <Text style={styles.details}>Card No.:</Text> {item.card_id}
+            <Text style={styles.details}>Card No.:</Text> {item.coupon_id}
           </Text>
           <Text
             style={[

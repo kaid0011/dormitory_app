@@ -11,13 +11,12 @@ import {
 import { useRoute } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useItemList } from "@/api/item_list";
-import { useQrCardList, updateQrCardCredits } from "@/api/qr_card";
-import { useInsertInvoice, useLastInsertedInvoiceId } from "@/api/invoice";
-import { useInsertTransaction } from "@/api/transaction";
+import { useCouponList, updateCouponBalance } from "@/api/coupons";
+import { useInsertInvoice, useLastInsertedInvoiceId } from "@/api/invoices";
+import { useInsertTransaction } from "@/api/transactions";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Header from "@/components/Header";
 import { styles } from "@/assets/styles/styles";
-import FontText from "@/components/FontText";
 import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
 // Define the TransactionData type
@@ -39,7 +38,7 @@ export default function Transaction() {
   const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
 
   const { data: itemListData, isLoading: itemListLoading, isError: itemListError } = useItemList();
-  const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
+  const { data: couponList, isLoading: couponLoading, isError: couponError } = useCouponList();
   const { insertTransaction, isInserting: isInsertingTransaction, isError: insertTransactionError } = useInsertTransaction();
   const { insertInvoice, isInserting: isInsertingInvoice, isError: insertInvoiceError } = useInsertInvoice();
   const { lastInsertedInvoiceId, isLoading: invoiceIdLoading, isError: invoiceIdError } = useLastInsertedInvoiceId();
@@ -62,7 +61,7 @@ export default function Transaction() {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | undefined;
 
-    if (qrCardLoading || itemListLoading || invoiceIdLoading) {
+    if (couponLoading || itemListLoading || invoiceIdLoading) {
       // Set a timeout for 10 seconds
       timeoutId = setTimeout(() => {
         setIsTimedOut(true);
@@ -70,7 +69,7 @@ export default function Transaction() {
     }
 
     // Clear the timeout if data fetch completes
-    if (!qrCardLoading && !itemListLoading && !invoiceIdLoading && !qrCardError && !itemListError && !invoiceIdError) {
+    if (!couponLoading && !itemListLoading && !invoiceIdLoading && !couponError && !itemListError && !invoiceIdError) {
       clearTimeout(timeoutId);
     }
 
@@ -80,20 +79,20 @@ export default function Transaction() {
         clearTimeout(timeoutId);
       }
     };
-  }, [qrCardLoading, itemListLoading, invoiceIdLoading, qrCardError, itemListError, invoiceIdError]);
+  }, [couponLoading, itemListLoading, invoiceIdLoading, couponError, itemListError, invoiceIdError]);
 
   useEffect(() => {
-    if (qrCardList) {
-      const qrCard = qrCardList.find((item) => item.card_no === qr);
-      if (qrCard) {
-        setCredits(qrCard.credits);
+    if (couponList) {
+      const coupon = couponList.find((item) => item.coupon_no === qr);
+      if (coupon) {
+        setCredits(coupon.balance);
         setAccountExists(true);
       } else {
         setCredits(null);
         setAccountExists(false);
       }
     }
-  }, [qrCardList, qr]);
+  }, [couponList, qr]);
 
   useEffect(() => {
     if (itemListData) {
@@ -118,9 +117,9 @@ export default function Transaction() {
 
   const handleDone = async () => {
     try {
-      if (qrCardList) {
-        const qrCard = qrCardList.find((item) => item.card_no === qr);
-        if (qrCard) {
+      if (couponList) {
+        const coupon = couponList.find((item) => item.coupon_no === qr);
+        if (coupon) {
           const lastId = lastInsertedInvoiceId === null ? 0 : lastInsertedInvoiceId;
           const newInvoiceId = lastId + 1;
           const currentDate = new Date();
@@ -147,14 +146,14 @@ export default function Transaction() {
             }
           });
 
-          const oldCredits = qrCard.credits;
+          const oldBalance = coupon.balance;
           const totalCredits = transactionData.reduce(
             (acc, curr) => acc + (itemListData.find((item) => item.id === curr.item_id)?.credits || 0),
             0
           );
-          const newCredits = oldCredits - totalCredits;
+          const newBalance = oldBalance - totalCredits;
 
-          if (newCredits < 0 || oldCredits === 0) {
+          if (newBalance < 0 || oldBalance === 0) {
             setErrorMessage("Insufficient Credits");
             return;
           }
@@ -165,11 +164,11 @@ export default function Transaction() {
           }
 
           const invoiceData = {
-            card_id: qrCard.id,
+            coupon_id: coupon.id,
             invoice_no: invoiceNumber,
             status,
-            old_credits: oldCredits,
-            new_credits: newCredits,
+            old_balance: oldBalance,
+            new_balance: newBalance,
           };
 
           const { error: invoiceError } = await insertInvoice(invoiceData);
@@ -180,11 +179,11 @@ export default function Transaction() {
           await insertTransaction(transactionData);
 
           // Update QR card credits
-          await updateQrCardCredits(qr, totalCredits);
+          await updateCouponBalance(qr, totalCredits);
 
           // Navigate to the invoice screen with the invoiceId parameter
           router.navigate(
-            `/invoice?invoiceId=${newInvoiceId}&credit=${oldCredits}&totalItems=${transactionData.length}`
+            `/invoice?invoiceId=${newInvoiceId}&credit=${oldBalance}&totalItems=${transactionData.length}`
           );
         } else {
           console.error("No matching card found for the QR code");
@@ -195,7 +194,7 @@ export default function Transaction() {
     }
   };
 
-  if (itemListLoading || qrCardLoading || invoiceIdLoading) {
+  if (itemListLoading || couponLoading || invoiceIdLoading) {
     return (
       <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
         <ActivityIndicator size="large" color="#edc01c" />
@@ -212,7 +211,7 @@ export default function Transaction() {
     );
   }
 
-  if (itemListError || qrCardError || invoiceIdError) {
+  if (itemListError || couponError || invoiceIdError) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Error fetching data</Text>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, BackHandler, ActivityIndicator } from 'react-native';
 import BouncyCheckbox from 'react-native-bouncy-checkbox';
 import { router } from 'expo-router';
-import { useAllInvoices, InvoiceData, useUpdateInvoiceStatus } from "@/api/invoice";
+import { useAllInvoices, InvoiceData, useUpdateInvoiceStatus } from "@/api/invoices";
 import Header from "@/components/Header";
 import { styles } from '@/assets/styles/styles';
 import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
@@ -59,7 +59,7 @@ export default function ReturningLaundry() {
     };
   }, [isLoading, isError]);
 
-  const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'Ongoing');
+  const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'ongoing');
 
   const toggleSelectAll = () => {
     setSelectAll(!selectAll);
@@ -97,7 +97,7 @@ export default function ReturningLaundry() {
           <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Invoice No.:</Text> {item.invoice_no}
         </Text>
         <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
-          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Coupon No.:</Text> {item.card_no}
+          <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Coupon No.:</Text> {item.coupon_no}
         </Text>
         <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>
           <Text style={[styles.details, isDarkMode ? styles.darkText : styles.lightText]}>Date:</Text> {new Date(item.date_time).toLocaleDateString()}

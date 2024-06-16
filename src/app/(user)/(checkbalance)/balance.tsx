@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Text, View, ActivityIndicator, Dimensions, BackHandler } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { useQrCardList } from '@/api/qr_card';
+import { useCouponList } from '@/api/coupons';
 import Header from '@/components/Header';
 import { styles } from '@/assets/styles/styles';
 import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
@@ -15,7 +15,7 @@ export default function Balance() {
   const [accountExists, setAccountExists] = useState<boolean | null>(null);
   const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
 
-  const { data: qrCardList, isLoading: qrCardLoading, isError: qrCardError } = useQrCardList();
+  const { data: couponList, isLoading: couponLoading, isError: couponError } = useCouponList();
 
   useEffect(() => {
     const handleBackPress = () => {
@@ -35,7 +35,7 @@ export default function Balance() {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | undefined;
 
-    if (qrCardLoading) {
+    if (couponLoading) {
       // Set a timeout for 10 seconds
       timeoutId = setTimeout(() => {
         setIsTimedOut(true);
@@ -43,7 +43,7 @@ export default function Balance() {
     }
 
     // Clear the timeout if data fetch completes
-    if (!qrCardLoading && !qrCardError) {
+    if (!couponLoading && !couponError) {
       clearTimeout(timeoutId);
     }
 
@@ -53,22 +53,22 @@ export default function Balance() {
         clearTimeout(timeoutId);
       }
     };
-  }, [qrCardLoading, qrCardError]);
+  }, [couponLoading, couponError]);
 
   useEffect(() => {
-    if (qrCardList) {
-      const qrCard = qrCardList.find((item) => item.card_no === qr);
-      if (qrCard) {
-        setCredits(qrCard.credits);
+    if (couponList) {
+      const coupon = couponList.find((item) => item.coupon_no === qr);
+      if (coupon) {
+        setCredits(coupon.balance);
         setAccountExists(true);
       } else {
         setCredits(null);
         setAccountExists(false);
       }
     }
-  }, [qrCardList, qr]);
+  }, [couponList, qr]);
 
-  if (qrCardLoading && !isTimedOut) {
+  if (couponLoading && !isTimedOut) {
     return (
       <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
         <ActivityIndicator size="large" color="#edc01c" />
@@ -84,7 +84,7 @@ export default function Balance() {
     );
   }
 
-  if (qrCardError) {
+  if (couponError) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Error fetching data</Text>
