@@ -2,25 +2,24 @@ import React, { useEffect, useState } from "react";
 import {
   Text,
   View,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
+  BackHandler
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
-import { useInvoiceDetails } from "@/api/invoice";
-import { useQrCardById } from "@/api/qr_card";
-import * as FileSystem from "expo-file-system";
+import { useInvoiceDetails } from "@/api/invoices";
+import { useCouponById } from "@/api/coupons";
 import { shareAsync } from "expo-sharing";
 import * as Print from "expo-print";
-import { useTransactionByInvoiceId } from "@/api/transaction";
+import { router } from "expo-router";
+import { useTransactionByInvoiceId } from "@/api/transactions";
 import { useItemList } from "@/api/item_list";
-import { TransactionData } from "@/api/transaction";
 import { Ionicons } from "@expo/vector-icons";
+import Header from "@/components/Header";
+import { styles } from "@/assets/styles/styles";
+import { useTheme } from '@/components/ThemeContext';  // Import the useTheme hook
 
-const [isDarkMode, setIsDarkMode] = useState(false);
-
-
-// Define formatDate and formatTime functions globally
 const formatDate = (date: Date) => {
   return date.toLocaleDateString("en-US", {
     year: "numeric",
@@ -38,623 +37,378 @@ const formatTime = (date: Date) => {
 };
 
 interface TransactionItemProps {
-  transaction: TransactionData;
+  transaction: any;
   itemList: any[];
+  isDarkMode: boolean;
 }
 
-const TransactionItem: React.FC<TransactionItemProps> = ({
-  transaction,
-  itemList,
-}) => {
+const TransactionItem: React.FC<TransactionItemProps> = ({ transaction, itemList, isDarkMode }) => {
   const item = itemList.find((item) => item.id === transaction.item_id);
 
-  if (!item) {
-    return null;
-  }
-  
+  if (!item) return null;
+
   return (
-    <View style={styles.row}>
-      <Text style={styles.cell}>{transaction.serial_no}</Text>
-      <Text style={styles.cell}>{item.item}</Text>
-      <Text style={styles.cell}>{transaction.tag_no}</Text>
-      <Text style={styles.cell}>{item.credits}</Text>
+    <View style={styles.tableRow}>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{transaction.serial_no}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{item.item}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{transaction.tag_no}</Text>
+      <Text style={[styles.tableCell, isDarkMode ? styles.darkText : styles.lightText]}>{item.credits}</Text>
     </View>
   );
 };
 
 export default function Invoice() {
+  const { isDarkMode, toggleTheme } = useTheme();  // Use the theme context
+
   const route = useRoute();
-  const { invoiceId } = route.params as {
-    invoiceId: number;
-  };
+  const { invoiceId } = route.params as { invoiceId: number };
 
-  const {
-    invoiceDetails,
-    isLoading: invoiceLoading,
-    isError: invoiceError,
-  } = useInvoiceDetails(invoiceId);
-  const {
-    qrCard,
-    isLoading: qrCardLoading,
-    isError: qrCardError,
-  } = useQrCardById(invoiceDetails?.card_id || 0);
+  const { invoiceDetails, isLoading: invoiceLoading, isError: invoiceError } = useInvoiceDetails(invoiceId);
+  const { coupon, isLoading: couponLoading, isError: couponError } = useCouponById(invoiceDetails?.coupon_id || 0);
+  const { data: itemList, isLoading: itemListLoading, isError: itemListError } = useItemList();
+  const { data: transactions, isLoading: transactionsLoading, isError: transactionsError } = useTransactionByInvoiceId(invoiceId.toString());
 
-  const [totalItems, setTotalItems] = useState<number>(0);
-  const [totalCredits, setTotalCredits] = useState<number>(0);
-  const [pdfUri, setPdfUri] = useState<string | null>(null);
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
   const [pdfContent, setPdfContent] = useState<string | null>(null);
 
-  const {
-    data: itemList,
-    isLoading: itemListLoading,
-    isError: itemListError,
-  } = useItemList();
-  const {
-    data: transactions,
-    isLoading: transactionsLoading,
-    isError: transactionsError,
-  } = useTransactionByInvoiceId(invoiceId.toString());
+  useEffect(() => {
+    const handleBackPress = () => {
+      router.replace('/(history)'); // Use replace to prevent going back to two.tsx
+      return true; // This prevents the default back button behavior
+    };
+
+    // Adding the hardware back button listener
+    BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+    // Cleanup the listener on component unmount
+    return () => {
+      BackHandler.removeEventListener('hardwareBackPress', handleBackPress);
+    };
+  }, [router]);
 
   useEffect(() => {
-    if (transactions && itemList) {
-      let items = 0;
-      let credits = 0;
-      transactions.forEach((transaction: TransactionData) => {
-        const item = itemList.find((item) => item.id === transaction.item_id);
-        if (item) {
-          items++;
-          credits += item.credits;
-        }
-      });
-      setTotalItems(items);
-      setTotalCredits(credits);
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    if (invoiceLoading || couponLoading || transactionsLoading || itemListLoading) {
+      // Set a timeout for 10 seconds
+      timeoutId = setTimeout(() => {
+        setIsTimedOut(true);
+      }, 10000); // 10 seconds
     }
-  }, [transactions, itemList]);
+
+    // Clear the timeout if data fetch completes
+    if (!(invoiceLoading || couponLoading || transactionsLoading || itemListLoading) && !(invoiceError || couponError || transactionsError || itemListError)) {
+      clearTimeout(timeoutId);
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [invoiceLoading, couponLoading, transactionsLoading, itemListLoading, invoiceError, couponError, transactionsError, itemListError]);
 
   useEffect(() => {
     const generateAndDownloadPDF = async () => {
-      try {
-        if (invoiceDetails && qrCard && transactions && itemList) {
-          const transactionsContent = transactions
-            .map((transaction, index) => {
-              const item = itemList.find(
-                (item) => item.id === transaction.item_id
-              );
-              if (item) {
-                return `
-                  <div class="row">
-                    <span class="cell">${index + 1}</span>
-                    <span class="cell">${item.item}</span>
-                    <span class="cell">${transaction.tag_no}</span>
-                    <span class="cell">${item.credits}</span>
-                  </div>
-                `;
-              }
-              return "";
-            })
-            .join("");
-  
-          const pdfContent = `
-          <!DOCTYPE html>
-          <html lang="en">
-          
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Invoice</title>
-            <style>
-              .container {
-                flex: 1;
-                background-color: #fff;
-              }
-          
-              .invoiceContainer {
-                flex: 1;
-                padding: 20px;
-                background-color: #fff;
-              }
-          
-              .title {
-                font-size: 15px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                text-align: center;
-                border-bottom: 1px solid #ccc;
-              }
-          
-              .cardNo {
-                font-size: 30px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                text-align: center;
-              }
-          
-              .detailsContainer {
-                margin-bottom: 20px;
-                padding: 20px;
-                border-bottom: 1px solid #ccc;
-                border-top: 1px solid #ccc;
-              }
-          
-              .detailsRow {
-                display: flex;
-                align-items: center;
-              }
-          
-              .detailLabel {
-                flex: 1;
-                font-size: 16px;
-                font-weight: bold;
-              }
-          
-              .detail {
-                flex: 2;
-                font-size: 16px;
-              }
-          
-              .transactionContainer {
-                margin-bottom: 10px;
-              }
-          
-              .row {
-                display: flex;
-                padding: 10px 0;
-                border-bottom: 1px solid #ccc;
-                align-items: center;
-              }
-          
-              .cell {
-                flex: 1;
-                text-align: center;
-                font-size: 16px;
-              }
-          
-              .headerCell {
-                font-weight: bold;
-              }
-          
-              .credits {
-                margin-top: 25px;
-                padding: 25px;
-                align-items: center;
-                text-align: center;
-                border: 1px solid gray;
-                border-radius: 5px;
-              }
-          
-              .creditsLabel {
-                font-size: 20px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                border-bottom: 1px solid #ccc;
-              }
-          
-              .icon {
-                font-weight: bold;
-                font-size: 30px;
-                color: red;
-              }
-          
-              .tableCredits {
-                display: flex;
-                justify-content: space-between;
-              }
-          
-              .rowCredits {
-                flex: 1;
-                align-items: center;
-                justify-content: center;
-              }
-          
-              .creditsValue {
-                font-size: 25px;
-                font-weight: bold;
-              }
-          
-              .creditsSub {
-                font-size: 12px;
-              }
-          
-              .printBg {
-                background-color: green;
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                right: 0;
-              }
-          
-              .printButton {
-                background-color: blue;
-                padding: 15px;
-                border-radius: 10px;
-                color: #fff;
-                font-size: 16px;
-                font-weight: bold;
-              }
-            </style>
-          </head>
-          
-          <body>
-            <div class="container">
-              <div class="invoiceContainer">
-                <h1 class="title">COTTON CARE DRY CLEANERS</h1>
-                <h2 class="cardNo">${qrCard.card_no}</h2>
-                <div class="detailsContainer">
-                  <div class="detailsRow">
-                    <span class="detailLabel">Invoice No:</span>
-                    <span class="detail">${invoiceDetails.invoice_no}</span>
-                  </div>
-                  <div class="detailsRow">
-                    <span class="detailLabel">Date:</span>
-                    <span class="detail">${formatDate(
-                      invoiceDetails.date_time
-                    )}</span>
-                  </div>
-                  <div class="detailsRow">
-                    <span class="detailLabel">Time:</span>
-                    <span class="detail">${formatTime(
-                      invoiceDetails.date_time
-                    )}</span>
-                  </div>
-                  <div class="detailsRow">
-                    <span class="detailLabel">Ready By:</span>
-                    <span class="detail">${formatDate(
-                      invoiceDetails.ready_by
-                    )}</span>
-                  </div>
+      if (invoiceDetails && coupon && transactions && itemList) {
+        const transactionsContent = transactions.map((transaction, index) => {
+          const item = itemList.find((item) => item.id === transaction.item_id);
+          return item
+            ? `<div class="row">
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${index + 1}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${item.item}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${transaction.tag_no}</span>
+                 <span class="cell ${isDarkMode ? 'darkText' : 'lightText'}">${item.credits}</span>
+               </div>`
+            : "";
+        }).join("");
+
+        const content = `
+        <!DOCTYPE html>
+        <html lang="en">
+        
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Invoice</title>
+          <style>
+            .container {
+              flex: 1;
+              background-color: #fff;
+            }
+            .invoiceContainer {
+              flex: 1;
+              padding: 20px;
+              background-color: #fff;
+            }
+            .title {
+              font-size: 15px;
+              font-weight: bold;
+              margin-bottom: 20px;
+              padding-bottom: 10px;
+              text-align: center;
+              border-bottom: 1px solid #ccc;
+            }
+            .cardNo {
+              font-size: 30px;
+              font-weight: bold;
+              margin-bottom: 20px;
+              text-align: center;
+            }
+            .detailsContainer {
+              margin-bottom: 20px;
+              padding: 20px;
+              border-bottom: 1px solid #ccc;
+              border-top: 1px solid #ccc;
+            }
+            .detailsRow {
+              display: flex;
+              align-items: center;
+            }
+            .detailLabel {
+              flex: 1;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .detail {
+              flex: 2;
+              font-size: 16px;
+            }
+            .transactionContainer {
+              margin-bottom: 10px;
+            }
+            .row {
+              display: flex;
+              padding: 10px 0;
+              border-bottom: 1px solid #ccc;
+              align-items: center;
+            }
+            .cell {
+              flex: 1;
+              text-align: center;
+              font-size: 16px;
+            }
+            .headerCell {
+              font-weight: bold;
+            }
+            .credits {
+              margin-top: 25px;
+              padding: 25px;
+              align-items: center;
+              text-align: center;
+              border: 1px solid gray;
+              border-radius: 5px;
+            }
+            .creditsLabel {
+              font-size: 20px;
+              font-weight: bold;
+              margin-bottom: 20px;
+              border-bottom: 1px solid #ccc;
+            }
+            .icon {
+              font-weight: bold;
+              font-size: 30px;
+              color: red;
+            }
+            .tableCredits {
+              display: flex;
+              justify-content: space-between;
+            }
+            .rowCredits {
+              flex: 1;
+              align-items: center;
+              justify-content: center;
+            }
+            .creditsValue {
+              font-size: 25px;
+              font-weight: bold;
+            }
+            .creditsSub {
+              font-size: 12px;
+            }
+          </style>
+        </head>
+        
+        <body class="">
+          <div class="container">
+            <div class="invoiceContainer">
+              <h1 class="title">COTTON CARE DRY CLEANERS</h1>
+              <h2 class="cardNo">${coupon.coupon_no}</h2>
+              <div class="detailsContainer">
+                <div class="detailsRow">
+                  <span class="detailLabel">Invoice No:</span>
+                  <span class="detail">${invoiceDetails.invoice_no}</span>
                 </div>
-          
-                <div class="transactionContainer">
-                <div class="row">
-                  <span class="cell headerCell">S/No.</span>
-                  <span class="cell headerCell">Item(s)</span>
-                  <span class="cell headerCell">Tag No.</span>
-                  <span class="cell headerCell">Credit(s)</span>
+                <div class="detailsRow">
+                  <span class="detailLabel">Date:</span>
+                  <span class="detail">${formatDate(invoiceDetails.date_time)}</span>
                 </div>
-                ${transactionsContent}
-                <div class="row">
-                  <span class="cell headerCell"></span>
-                  <span class="cell headerCell"></span>
-                  <span class="cell headerCell">TOTAL:</span>
-                  <span class="cell headerCell">${totalCredits}</span>
+                <div class="detailsRow">
+                  <span class="detailLabel">Time:</span>
+                  <span class="detail">${formatTime(invoiceDetails.date_time)}</span>
+                </div>
+                <div class="detailsRow">
+                  <span class="detailLabel">Ready By:</span>
+                  <span class="detail">${formatDate(invoiceDetails.ready_by)}</span>
                 </div>
               </div>
-          
-                <div class="credits">
-                  <h2 class="creditsLabel">CREDITS STATUS</h2>
-                  <div class="tableCredits">
-                    <div class="rowCredits">
-                      <span class="creditsSub">FROM</span>
-                      <span class="creditsValue">${
-                        invoiceDetails.old_credits
-                      }</span>
-                    </div>
-                    <div class="rowCredits">
-                      <span class="creditsValue">
-                        <i class="icon"></i>
-                      </span>
-                    </div>
-                    <div class="rowCredits">
-                      <span class="creditsSub">TO</span>
-                      <span class="creditsValue">${
-                        invoiceDetails.new_credits
-                      }</span>
-                    </div>
+        
+              <div class="transactionContainer">
+              <div class="row">
+                <span class="cell headerCell">S/No.</span>
+                <span class="cell headerCell">Item(s)</span>
+                <span class="cell headerCell">Tag No.</span>
+                <span class="cell headerCell">Credit(s)</span>
+              </div>
+              ${transactionsContent}
+              <div class="row">
+                <span class="cell headerCell"></span>
+                <span class="cell headerCell"></span>
+                <span class="cell headerCell">TOTAL:</span>
+                <span class="cell headerCell">${invoiceDetails.total_credits}</span>
+              </div>
+            </div>
+        
+              <div class="credits">
+                <h2 class="creditsLabel">CREDITS STATUS</h2>
+                <div class="tableCredits">
+                  <div class="rowCredits">
+                    <span class="creditsSub">FROM</span>
+                    <span class="creditsValue">${invoiceDetails.old_balance}</span>
+                  </div>
+                  <div class="rowCredits">
+                    <span class="creditsValue">
+                      <i class="icon"></i>
+                    </span>
+                  </div>
+                  <div class="rowCredits">
+                    <span class="creditsSub">TO</span>
+                    <span class="creditsValue">${invoiceDetails.new_balance}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </body>
-          </html>
-          `;
-  
-          setPdfContent(pdfContent); // Update pdfContent state here
-  
-          const pdfUri = `${FileSystem.cacheDirectory}invoice.pdf`;
-          await FileSystem.writeAsStringAsync(pdfUri, pdfContent, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
-          setPdfUri(pdfUri);
-        }
-      } catch (error) {
-        console.error("Error generating PDF:", error);
+          </div>
+        </body>
+        </html>
+        `;
+        setPdfContent(content);
       }
     };
-  
     generateAndDownloadPDF();
-  }, [invoiceDetails, qrCard, transactions, itemList]); // Removed totalCredits from dependency array
-  
+  }, [invoiceDetails, coupon, transactions, itemList, isDarkMode]);
 
   const printToFile = async () => {
+    if (!pdfContent) return;
     try {
-      if (!pdfContent) {
-        console.error("PDF content is null");
-        return;
-      }
-      const { uri } = await Print.printToFileAsync({ html: pdfContent || "" }); // Provide a default value if pdfContent is null
-      console.log("File has been saved to:", uri);
+      const { uri } = await Print.printToFileAsync({ html: pdfContent, height: 842, width: 595 });
       await shareAsync(uri, { UTI: ".pdf", mimeType: "application/pdf" });
     } catch (error) {
       console.error("Printing error:", error);
     }
   };
 
-  if (
-    invoiceLoading ||
-    qrCardLoading ||
-    transactionsLoading ||
-    itemListLoading
-  ) {
-    return <Text>Loading...</Text>;
+  if ((invoiceLoading || couponLoading || transactionsLoading || itemListLoading) && !isTimedOut) {
+    return (
+      <View style={[styles.loadingContainer, isDarkMode ? styles.darkBg : styles.lightBg]}>
+        <ActivityIndicator size="large" color="#edc01c" />
+        <Text style={[styles.loadingText, isDarkMode ? styles.darkText : styles.lightText]}>Loading...</Text>
+      </View>
+    );
   }
 
-  if (
-    invoiceError ||
-    qrCardError ||
-    transactionsError ||
-    itemListError ||
-    !invoiceDetails ||
-    !qrCard ||
-    !transactions ||
-    !itemList
-  ) {
-    return <Text>Error fetching data</Text>;
+  if (isTimedOut) {
+    return (
+      <View style={styles.timeoutContainer}>
+        <Text style={styles.timeoutText}>The request is taking longer than expected. Please try again later.</Text>
+      </View>
+    );
   }
-  
+
+  if (invoiceError || couponError || transactionsError || itemListError || !invoiceDetails || !coupon || !transactions || !itemList) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Error fetching data</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.invoiceContainer}>
-        <Text style={styles.title}>COTTON CARE DRY CLEANERS</Text>
-        <Text style={styles.cardNo}>{qrCard.card_no}</Text>
-        <View style={styles.detailsContainer}>
-          <View style={styles.detailsRow}>
-            <Text style={styles.detailLabel}>Invoice No:</Text>
-            <Text style={styles.detail}>{invoiceDetails.invoice_no}</Text>
+    <View style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}>
+      <Header/>
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.innerContainer}>
+          <View style={styles.orContainer}>
+            <View style={styles.orLine} />
+            <Text style={[styles.h1, isDarkMode ? styles.darkText : styles.lightText]}>INVOICE</Text>
+            <View style={styles.orLine} />
           </View>
-          <View style={styles.detailsRow}>
-            <Text style={styles.detailLabel}>Date:</Text>
-            <Text style={styles.detail}>
-              {formatDate(invoiceDetails.date_time)}
-            </Text>
+          <Text style={[styles.invoiceTitle, isDarkMode ? styles.darkText : styles.lightText]}>COTTON CARE DRY CLEANERS</Text>
+          <Text style={[styles.invoiceCardNo, isDarkMode ? styles.darkText : styles.lightText]}>{coupon.coupon_no}</Text>
+          <View style={styles.invoiceDetailsContainer}>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Invoice No:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.invoice_no}</Text>
+            </View>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Date:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatDate(new Date(invoiceDetails.date_time))}</Text>
+            </View>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Time:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatTime(new Date(invoiceDetails.date_time))}</Text>
+            </View>
+            <View style={styles.invoiceDetailsRow}>
+              <Text style={[styles.invoiceDetailLabel, isDarkMode ? styles.darkText : styles.lightText]}>Ready By:</Text>
+              <Text style={[styles.invoiceDetail, isDarkMode ? styles.darkText : styles.lightText]}>{formatDate(new Date(invoiceDetails.ready_by))}</Text>
+            </View>
           </View>
-          <View style={styles.detailsRow}>
-            <Text style={styles.detailLabel}>Time:</Text>
-            <Text style={styles.detail}>
-              {formatTime(invoiceDetails.date_time)}
-            </Text>
-          </View>
-          <View style={styles.detailsRow}>
-            <Text style={styles.detailLabel}>Ready By:</Text>
-            <Text style={styles.detail}>
-              {formatDate(invoiceDetails.ready_by)}
-            </Text>
-          </View>
-        </View>
-
-        <View>
-          <View style={styles.transactionContainer}>
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.headerCell]}>S/No.</Text>
-              <Text style={[styles.cell, styles.headerCell]}>Item(s)</Text>
-              <Text style={[styles.cell, styles.headerCell]}>Tag No.</Text>
-              <Text style={[styles.cell, styles.headerCell]}>Credit(s)</Text>
+          <View style={styles.invoiceTransactionContainer}>
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>S/No.</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Item(s)</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Tag No.</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>Credit(s)</Text>
             </View>
             {transactions.map((transaction, index) => (
-            <TransactionItem
-              key={index}
-              transaction={transaction}
-              itemList={itemList}
-            />
-          ))}
-            <View style={styles.row}>
-              <Text style={[styles.cell, styles.headerCell]}></Text>
-              <Text style={[styles.cell, styles.headerCell]}></Text>
-              <Text style={[styles.cell, styles.headerCell]}>TOTAL:</Text>
-              <Text style={[styles.cell, styles.headerCell]}>
-                {totalCredits}
-              </Text>
+              <TransactionItem key={index} transaction={transaction} itemList={itemList} isDarkMode={isDarkMode} />
+            ))}
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}></Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell]}></Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>TOTAL:</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.total_credits}</Text>
+            </View>
+          </View>
+          <View style={styles.invoiceCreditsContainer}>
+            <Text style={[styles.invoiceCreditsLabel, isDarkMode ? styles.darkText : styles.lightText]}>CREDITS STATUS</Text>
+            <View style={styles.invoiceTableCredits}>
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>FROM</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.old_balance}</Text>
+              </View>
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>
+                  <Ionicons name="trending-down" style={styles.invoiceCreditIcon} />
+                </Text>
+              </View>
+              <View style={styles.invoiceRowCredits}>
+                <Text style={[styles.h5, isDarkMode ? styles.darkText : styles.lightText]}>TO</Text>
+                <Text style={[styles.h3, isDarkMode ? styles.darkText : styles.lightText]}>{invoiceDetails.new_balance}</Text>
+              </View>
             </View>
           </View>
         </View>
-
-        <View style={styles.credits}>
-          <Text style={styles.creditsLabel}>CREDITS STATUS</Text>
-          <View style={styles.tableCredits}>
-            <View style={styles.rowCredits}>
-              <Text style={styles.creditsSub}>FROM</Text>
-              <Text style={styles.creditsValue}>
-                {invoiceDetails.old_credits}
-              </Text>
-            </View>
-            <View style={styles.rowCredits}>
-              <Text style={styles.creditsValue}>
-                <Ionicons name="trending-down" style={styles.icon} />
-              </Text>
-            </View>
-            <View style={styles.rowCredits}>
-              <Text style={styles.creditsSub}>TO</Text>
-              <Text style={styles.creditsValue}>
-                {invoiceDetails.new_credits}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
       </ScrollView>
-
-      <View style={styles.printBg}>
-        <TouchableOpacity onPress={printToFile} style={isDarkMode ? styles.darkDownloadButton : styles.lightDownloadButton}>
-          <Text style={
-            isDarkMode ? styles.darkDownloadButtonText : styles.lightDownloadButtonText
-          }>Download</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={[styles.fullWidthButton, isDarkMode ? styles.darkButton : styles.lightButton]}
+        onPress={printToFile}
+      >
+        <Text style={[styles.h4, isDarkMode ? styles.darkButtonText : styles.lightButtonText]}>
+        Download
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1, // Ensure the content can grow and be scrollable
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  invoiceContainer: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: "#fff",
-    paddingBottom: 100
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: "bold",
-    marginBottom: 20,
-    paddingBottom: 10,
-    textAlign: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-  },
-  cardNo: {
-    fontSize: 30,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  detailsContainer: {
-    marginBottom: 20,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    borderTopWidth: 1,
-    borderTopColor: "#ccc",
-  },
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  detailLabel: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  detail: {
-    flex: 2,
-    fontSize: 16,
-  },
-  transactionContainer: {
-    marginBottom: 10,
-  },
-  row: {
-    flexDirection: "row",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    alignItems: "center",
-  },
-  cell: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 16,
-  },
-  headerCell: {
-    fontWeight: "bold",
-  },
-  totalContainer: {
-    flexDirection: "row",
-    marginTop: 10,
-  },
-  totalLabel: {
-    fontWeight: "bold",
-    fontSize: 18,
-  },
-  total: {
-    fontSize: 18,
-  },
-  credits: {
-    marginTop: 25,
-    padding: 25,
-    alignItems: "center",
-    textAlign: "center",
-    borderColor: "gray",
-    borderWidth: 1,
-    borderRadius: 5,
-  },
-  creditsLabel: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-  },
-  icon: {
-    fontWeight: "bold",
-    fontSize: 30,
-    color: "red",
-  },
-  tableCredits: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  rowCredits: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  creditsValue: {
-    fontSize: 25,
-    fontWeight: "bold",
-  },
-  creditsSub: {
-    fontSize: 12,
-  },
-  printBg: {
-    backgroundColor: "green",
-    position: "absolute", // Position the button absolutely
-    bottom: 0, // Set bottom to 20px from the bottom of the screen
-    left: 0, // Optional: Set left to 20px from the left of the screen
-    right: 0, // Optional: Set right to 20px from the right of the screen
-  },
-  printButton: {
-    backgroundColor: "blue",
-    padding: 15,
-    alignItems: "center",
-    borderRadius: 10,
-  },
-  printButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  lightDownloadButton: {
-    justifyContent: "center",
-    height: 50,
-    alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: "#edc01c",
-  },
-  lightDownloadButtonText: {
-    color: "#382d06",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  darkDownloadButton: {
-    height: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    // paddingVertical: 10,
-    // paddingHorizontal: 20,
-    borderRadius: 5,
-    backgroundColor: "#d6b53c",
-  },
-  darkDownloadButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-});

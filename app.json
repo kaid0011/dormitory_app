@@ -4,32 +4,38 @@
     "slug": "dormitory_app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "@/assets/images/logo.png",
+    "icon": "./src/assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "@/assets/images/splash.png",
+      "image": "./src/assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "icon": "./src/assets/images/icon.png",
       "supportsTablet": true
     },
     "android": {
+      "icon": "./src/assets/images/icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "@/assets/images/adaptive-icon.png",
+        "foregroundImage": "./src/assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.kaid_0011.dormitory_app",
-      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "@/assets/images/favicon.png"
+      "favicon": "./src/assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
@@ -41,6 +47,7 @@
       "eas": {
         "projectId": "5c4ee4a7-db8d-42d0-b0f1-8a82ff92e054"
       }
-    }
+    },
+    "owner": "kaid_0011"
   }
 }

@@ -1,24 +1,41 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect, ReactNode } from "react";
+import { View } from "react-native";
+import { styles } from "@/assets/styles/styles";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemeProvider, useTheme } from "@/components/ThemeContext"; // Import the ThemeProvider
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="invoice_history" options={{ headerShown: false }} />
-      </Stack>
+    <ThemeProvider>
+      <ThemeWrapper>
+        <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="invoice_history"
+            options={{ headerShown: false }}
+          />
+        </Stack>
+      </ThemeWrapper>
     </ThemeProvider>
   );
 }
+
+const ThemeWrapper: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { isDarkMode } = useTheme();
+  return (
+    <View
+      style={[styles.container, isDarkMode ? styles.darkBg : styles.lightBg]}
+    >
+      {children}
+    </View>
+  );
+};
