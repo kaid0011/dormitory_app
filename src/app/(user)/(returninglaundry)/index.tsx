@@ -59,7 +59,7 @@ export default function ReturningLaundry() {
     };
   }, [isLoading, isError]);
 
-  const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'ongoing');
+  const ongoingInvoices = invoices.filter((invoice) => invoice.status === 'Ongoing');
 
   const toggleSelectAll = () => {
     setSelectAll(!selectAll);
@@ -152,7 +152,7 @@ export default function ReturningLaundry() {
           fillColor="green"
           iconStyle={{ borderColor: 'green' }}
           text="Select All"
-          textStyle={isDarkMode ? styles.darkText : styles.lightText}
+          textStyle={[styles.returningCheck, isDarkMode ? styles.darkText : styles.lightText]}
         />
         <TouchableOpacity
           style={[styles.returnButton, isDarkMode ? styles.darkButton : styles.lightButton]}

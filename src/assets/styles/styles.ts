@@ -437,7 +437,6 @@ export const styles = StyleSheet.create({
 
   returningListContainer: {
     flexDirection: "row",
-    alignItems: "center",
     padding: 10,
     marginBottom: 10,
     borderRadius: 8,
@@ -452,7 +451,6 @@ export const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderTopWidth: 2,
@@ -467,12 +465,16 @@ export const styles = StyleSheet.create({
   },
   returnButton: {
     height: 50,
+    width: 100,
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
     backgroundColor: "#edc01c",
+  },
+  returningCheck: {
+    width: 100,
   },
 
   // ---------- end of (returninglaundry)/index ----------
